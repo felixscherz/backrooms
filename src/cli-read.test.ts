@@ -177,6 +177,12 @@ describe("search", () => {
   });
 });
 
+describe("arguments", () => {
+  test("vault= is accepted before the command, the way the second-brain skill writes it", async () => {
+    expect(await vault.ok("vault=notes", "search", "query=dough")).toBe("Gamma.md");
+  });
+});
+
 describe("unsupported commands", () => {
   test("app-only commands are reported as unsupported", async () => {
     const result = await vault.run("command", "id=obsidian-linter:lint-file");

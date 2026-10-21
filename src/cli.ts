@@ -9,16 +9,18 @@ export type Invocation = { command: string; params: Map<string, string>; flags: 
 
 export type CliResult = { output: string; exitCode: number };
 
+/** The command is the first argument without `=`, so options such as `vault=` may come before it. */
 export function parseArguments(argv: string[]): Invocation {
-  const [command = "help", ...rest] = argv;
+  let command: string | undefined;
   const params = new Map<string, string>();
   const flags = new Set<string>();
-  for (const argument of rest) {
+  for (const argument of argv) {
     const equals = argument.indexOf("=");
     if (equals > 0) params.set(argument.slice(0, equals), argument.slice(equals + 1));
+    else if (command === undefined) command = argument;
     else flags.add(argument);
   }
-  return { command, params, flags };
+  return { command: command ?? "help", params, flags };
 }
 
 type Args = {
