@@ -5,6 +5,8 @@ references (`search.md`, `write.md`, `curate.md`, `maintain.md`, `conventions.md
 
 Every command takes `vault=<name>`. backroom serves one vault, so it can accept and ignore that parameter or drop it.
 
+[compatibility.md](compatibility.md) tracks what backroom implements so far and how closely it matches Obsidian.
+
 ## Commands the skill calls
 
 | Command | Parameters used | Used for |

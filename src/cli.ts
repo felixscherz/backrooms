@@ -477,6 +477,7 @@ export function helpText(): string {
     "",
     "The vault is the folder in BACKROOM_VAULT, or the nearest folder above the current one that has a .obsidian",
     "folder. The vault= parameter is accepted and ignored. Use \\n and \\t for newline and tab in content values.",
+    "BACKROOM_GIT=commit records every write as a git commit, BACKROOM_GIT=sync also pulls and pushes.",
     "",
     "Commands:",
     ...body,
