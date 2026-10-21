@@ -205,6 +205,17 @@ describe("append, prepend and edit", () => {
     expect(await vault.ok("edit", "path=Note.md", "old=a", "new=b", "all")).toBe("Edited: Note.md (2 replacements)");
   });
 
+  test("an edit that would make the frontmatter unreadable is refused", async () => {
+    const note = "---\ntags: [inbox]\n---\nBody\n";
+    const vault = await vaultWith({ "Note.md": note });
+
+    const result = await vault.run("edit", "path=Note.md", "old=[inbox]", "new=[inbox");
+
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain("frontmatter");
+    expect(await vault.read("Note.md")).toBe(note);
+  });
+
   test("a write based on an old version is rejected", async () => {
     const vault = await vaultWith({ "Note.md": "original" });
     const { version } = await vault.engine.read({ path: "Note.md" });

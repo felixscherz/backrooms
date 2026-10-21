@@ -8,7 +8,7 @@ import {
   type PropertyValueType,
 } from "./frontmatter";
 import { planMove } from "./move";
-import type { JsonValue, Properties } from "./note";
+import { parseNote, type JsonValue, type Note, type Properties } from "./note";
 import {
   basename,
   compareNames,
@@ -452,6 +452,7 @@ export class Engine {
       const path = resolveMarkdown(vault, ref);
       if (version !== undefined) checkVersion(vault, path, version);
       const { text, summary } = change(vault.text(path), path, vault);
+      checkFrontmatterStaysReadable(vault.note(path), text, path);
       const changes: Change[] =
         text === vault.text(path) ? [] : [{ kind: "modify", path, baseVersion: vault.version(path), text }];
       return { operation, summary, changes };
@@ -513,6 +514,17 @@ function textOf(vault: Vault, path: string): string {
   if (vault.entry(path)?.text === null)
     throw new BackroomError("unsupported", `"${path}" is not a text file backroom can read.`);
   return vault.text(path);
+}
+
+/** A write must not turn frontmatter Obsidian can read into frontmatter it cannot. */
+function checkFrontmatterStaysReadable(before: Note, text: string, path: string) {
+  const after = parseNote(text).frontmatter;
+  if (before.frontmatter.kind === "valid" && after.kind === "invalid") {
+    throw new BackroomError(
+      "unsafe",
+      `The change would make the frontmatter of "${path}" unreadable (${after.error.split("\n")[0]}).`,
+    );
+  }
 }
 
 function checkVersion(vault: Vault, path: string, version: string) {
