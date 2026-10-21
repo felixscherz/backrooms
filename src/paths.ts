@@ -71,7 +71,10 @@ export function validateFileName(name: string): string | null {
   return null;
 }
 
-/** Collation used for every sorted listing, so output order is stable across runs. */
+/**
+ * Order of every sorted listing: by UTF-16 code units, so uppercase sorts before lowercase. This matches the order
+ * of sources in the Obsidian CLI's `unresolved verbose` output ("AWS Glue Table.md, Amazon Athena.md").
+ */
 export function compareNames(a: string, b: string): number {
-  return a.localeCompare(b, "en", { sensitivity: "base", numeric: false }) || (a < b ? -1 : a > b ? 1 : 0);
+  return a < b ? -1 : a > b ? 1 : 0;
 }

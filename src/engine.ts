@@ -102,27 +102,34 @@ export class Engine {
     return vault.note(resolveMarkdown(vault, ref)).tags;
   }
 
-  /** Every tag in the vault with the number of notes that carry it. */
+  /**
+   * Every tag in the vault with the number of notes that carry it. Like the Obsidian CLI, the list includes each
+   * parent of a nested tag, counted once for every tag below it, and leaves out excluded files.
+   */
   async tags(): Promise<TagCount[]> {
     const vault = await this.vault();
     const counts = new Map<string, TagCount>();
-    for (const path of vault.markdownPaths()) {
+    const count = (tag: string) => {
+      const entry = counts.get(tag.toLowerCase()) ?? { tag, count: 0 };
+      entry.count++;
+      counts.set(tag.toLowerCase(), entry);
+    };
+    for (const path of includedNotes(vault)) {
       for (const tag of vault.note(path).tags) {
-        const entry = counts.get(tag.toLowerCase()) ?? { tag, count: 0 };
-        entry.count++;
-        counts.set(tag.toLowerCase(), entry);
+        const parts = tag.split("/");
+        for (let depth = 1; depth <= parts.length; depth++) count(parts.slice(0, depth).join("/"));
       }
     }
     return [...counts.values()].sort((a, b) => compareNames(a.tag, b.tag));
   }
 
-  /** The notes that carry a tag. */
+  /** The notes that carry a tag or a tag nested below it, leaving out excluded files. */
   async tag(name: string): Promise<{ tag: string; files: string[] }> {
     const vault = await this.vault();
     const wanted = name.replace(/^#/, "").toLowerCase();
-    const files = vault
-      .markdownPaths()
-      .filter((path) => vault.note(path).tags.some((tag) => tag.toLowerCase() === wanted));
+    const files = includedNotes(vault).filter((path) =>
+      vault.note(path).tags.some((tag) => tag.toLowerCase() === wanted || tag.toLowerCase().startsWith(`${wanted}/`)),
+    );
     return { tag: name.replace(/^#/, ""), files };
   }
 
@@ -215,9 +222,8 @@ export class Engine {
     const parsed = parseQuery(query, searchOptions);
     const folder = options.folder === undefined ? "" : normalizeFolder(options.folder);
     const matches: FileMatch[] = [];
-    for (const path of vault.markdownPaths()) {
+    for (const path of includedNotes(vault)) {
       if (folder !== "" && !path.startsWith(`${folder}/`)) continue;
-      if (vault.isExcluded(path)) continue;
       const match = matchFile(parsed, { path, text: vault.text(path), note: vault.note(path) }, searchOptions);
       if (match) matches.push(match);
       if (options.limit !== undefined && matches.length >= options.limit) break;
@@ -426,6 +432,11 @@ export class Engine {
 
 /** Where a new file goes: an exact path, or a name placed by the vault's new file location setting. */
 export type FileTarget = { path: string } | { name: string };
+
+/** Notes that are not hidden by Obsidian's excluded files setting. */
+function includedNotes(vault: Vault): string[] {
+  return vault.markdownPaths().filter((path) => !vault.isExcluded(path));
+}
 
 function resolveRef(vault: Vault, ref: FileRef): string {
   if ("path" in ref) {

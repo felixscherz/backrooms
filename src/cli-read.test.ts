@@ -105,15 +105,15 @@ describe("tags", () => {
 });
 
 describe("links", () => {
-  test("outgoing links are listed once each, sorted, with unresolved ones marked", async () => {
+  test("outgoing links are listed once each in code unit order, with unresolved ones marked", async () => {
     expect(await vault.ok("links", "path=Alpha.md")).toBe(
       [
-        "assets/diagram.png",
         "Beta.md",
-        "folder/Delta.md",
         "Gamma.md",
         "Missing Prop (unresolved)",
         "Nowhere (unresolved)",
+        "assets/diagram.png",
+        "folder/Delta.md",
       ].join("\n"),
     );
   });
@@ -159,7 +159,7 @@ describe("files", () => {
 
 describe("search", () => {
   test("search lists matching notes, ignoring case", async () => {
-    expect(await vault.ok("search", "query=pizza")).toBe("Alpha.md\nBeta.md\nfolder/Delta.md\nGamma.md");
+    expect(await vault.ok("search", "query=pizza")).toBe("Alpha.md\nBeta.md\nGamma.md\nfolder/Delta.md");
   });
 
   test("search:context shows the matching lines", async () => {
@@ -183,5 +183,46 @@ describe("unsupported commands", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.output).toStartWith('Error: Command "command" is not supported');
+  });
+});
+
+describe("nested tags and excluded files", () => {
+  let nested: TempVault;
+
+  beforeAll(async () => {
+    nested = await tempVault(
+      {
+        "Python.md": "#resource/python #resource/tools",
+        "Rust.md": "---\ntags: [resource/rust]\n---\n",
+        "Home.md": "#area/home",
+        "assets/Drawing.excalidraw.md": "---\ntags: [excalidraw, resource/python]\n---\n[[Python]] pizza",
+      },
+      { userIgnoreFilters: ["assets/"] },
+    );
+  });
+
+  afterAll(() => nested.remove());
+
+  test("vault tags include each parent tag, counting the nested tags below it", async () => {
+    expect(await nested.ok("tags", "counts")).toBe(
+      [
+        "#area\t1",
+        "#area/home\t1",
+        "#resource\t3",
+        "#resource/python\t1",
+        "#resource/rust\t1",
+        "#resource/tools\t1",
+      ].join("\n"),
+    );
+  });
+
+  test("tag lists the notes with the tag or a tag nested below it", async () => {
+    expect(await nested.ok("tag", "name=resource", "verbose")).toBe("#resource\t2\nPython.md\nRust.md");
+  });
+
+  test("excluded files are left out of tags and search, but their links still count", async () => {
+    expect(await nested.ok("tags")).not.toContain("#excalidraw");
+    expect(await nested.ok("search", "query=pizza")).toBe("No matches found.");
+    expect(await nested.ok("backlinks", "path=Python.md")).toBe("assets/Drawing.excalidraw.md");
   });
 });
