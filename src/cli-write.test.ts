@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { chmod, mkdir } from "node:fs/promises";
+import { chmod, mkdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { tempVault, type TempVault } from "./testing/temp-vault";
 import { contentVersion } from "./vault";
@@ -375,5 +375,16 @@ describe("the write path", () => {
     await vault.ok("rename", "path=A.md", "name=B");
 
     expect(Object.keys(await vault.snapshot()).filter((path) => !path.startsWith(".obsidian"))).toEqual(["B.md"]);
+  });
+});
+
+describe("file permissions", () => {
+  test("a modified file keeps its permissions", async () => {
+    const vault = await vaultWith({ "Script.md": "a" });
+    await chmod(join(vault.root, "Script.md"), 0o600);
+
+    await vault.ok("append", "path=Script.md", "content=b");
+
+    expect((await stat(join(vault.root, "Script.md"))).mode & 0o777).toBe(0o600);
   });
 });

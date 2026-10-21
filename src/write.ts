@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { lstat, mkdir, readFile, rename, rmdir, unlink, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, rename, rmdir, stat, unlink, writeFile } from "node:fs/promises";
 import { dirname as dirnameFs, join as joinFs } from "node:path";
 import { BackroomError } from "./errors";
 import { basename, dirname, extension, isHidden, normalize, stem } from "./paths";
@@ -145,7 +145,8 @@ async function checkVersion(root: string, path: string, baseVersion: string | nu
 async function atomicWrite(root: string, path: string, text: string, options: { mustNotExist: boolean }) {
   const target = joinFs(root, path);
   const temporary = joinFs(dirnameFs(target), `.${basename(path)}.backroom-${randomBytes(6).toString("hex")}`);
-  await writeFile(temporary, text, { encoding: "utf8", flag: "wx" });
+  const mode = options.mustNotExist ? undefined : (await stat(target).catch(() => null))?.mode;
+  await writeFile(temporary, text, { encoding: "utf8", flag: "wx", ...(mode === undefined ? {} : { mode }) });
   try {
     if (options.mustNotExist && (await exists(root, path))) throw alreadyExists(path);
     await rename(temporary, target);
