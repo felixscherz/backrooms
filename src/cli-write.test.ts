@@ -274,6 +274,14 @@ describe("rename and move", () => {
     expect(after["Pizza Napoletana.md"]).toBe("# Pizza\n");
   });
 
+  test("a markdown link in angle brackets keeps them and stays unencoded", async () => {
+    const vault = await vaultWith({ "My Note.md": "", "Index.md": "[x](<My Note.md#Part>) and [y](My%20Note.md)" });
+
+    await vault.ok("rename", "path=My Note.md", "name=Your Note");
+
+    expect(await vault.read("Index.md")).toBe("[x](<Your Note.md#Part>) and [y](Your%20Note.md)");
+  });
+
   test("a rename that only changes case works on case-insensitive disks", async () => {
     const vault = await vaultWith({ "paris 2024.md": "x", "Trips.md": "[[paris 2024]]" });
 

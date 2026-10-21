@@ -146,9 +146,12 @@ function pathSpan(text: string, span: Span, link: Link): Span {
   const destination = raw.lastIndexOf("](") + 2;
   const rest = raw.slice(destination);
   const leading = rest.length - rest.trimStart().length;
-  const start = destination + leading + (rest.trimStart().startsWith("<") ? 1 : 0);
+  const angled = rest.trimStart().startsWith("<");
+  const start = destination + leading + (angled ? 1 : 0);
+  // A path in angle brackets may contain spaces and ends at ">", a plain one ends at whitespace or ")".
+  const stop = angled ? /[#>]/ : /[#\s)]/;
   let end = start;
-  while (end < raw.length && !/[#>\s)]/.test(raw[end]!)) end++;
+  while (end < raw.length && !stop.test(raw[end]!)) end++;
   return { start: span.start + start, end: span.start + end };
 }
 
