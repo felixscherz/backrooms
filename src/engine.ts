@@ -9,10 +9,22 @@ import {
 } from "./frontmatter";
 import { planMove } from "./move";
 import type { JsonValue, Properties } from "./note";
-import { basename, compareNames, dirname, extension, isHidden, join, normalize, stem, validateFileName } from "./paths";
+import {
+  basename,
+  compareNames,
+  dirname,
+  extension,
+  isHidden,
+  isMarkdown,
+  join,
+  normalize,
+  stem,
+  validateFileName,
+} from "./paths";
 import { matchFile, parseQuery, type FileMatch } from "./search";
 import { Vault, type VaultFile } from "./vault";
-import { applyChanges, type AppliedChange, type Change } from "./write";
+import type { CommitChange, Git } from "./git";
+import { applyChanges, TRASH_FOLDER, type AppliedChange, type Change } from "./write";
 
 /** How a command names a file: `path=` is the exact vault path, `file=` resolves like a wikilink. */
 export type FileRef = { path: string } | { file: string };
@@ -26,9 +38,16 @@ export type UnresolvedLink = { link: string; count: number; sources: string[] };
 export type PropertyCount = { name: string; count: number };
 
 /** A write that was applied, described for the caller and for the commit that records it. */
-export type WriteResult = { operation: string; summary: string; changes: AppliedChange[] };
+export type WriteResult = { operation: string; summary: string; changes: AppliedChange[]; warnings: string[] };
 
-export type WriteListener = (result: WriteResult) => Promise<void>;
+/** What happens around every write, such as pulling before and committing after (ADR 6). */
+export type WriteHooks = {
+  beforeWrite(): Promise<void>;
+  /** Returns warnings for the caller, for example when the commit failed although the write succeeded. */
+  afterWrite(result: WriteResult): Promise<string[]>;
+};
+
+export type EngineOptions = { git?: Git };
 
 /**
  * The vault engine. Every operation of the CLI and the MCP server exists here once. Reads load a fresh picture of
@@ -37,10 +56,14 @@ export type WriteListener = (result: WriteResult) => Promise<void>;
 export class Engine {
   private queue: Promise<unknown> = Promise.resolve();
 
+  readonly git: Git | null;
+
   constructor(
     readonly root: string,
-    private readonly onWrite: WriteListener = async () => {},
-  ) {}
+    options: EngineOptions = {},
+  ) {
+    this.git = options.git ?? null;
+  }
 
   async vault(): Promise<Vault> {
     return Vault.load(this.root);
@@ -397,6 +420,28 @@ export class Engine {
     });
   }
 
+  /**
+   * Undoes a commit backroom made, as a new write: every file the commit touched gets its content from before the
+   * commit, provided it has not changed since. Files the commit moved to .trash come back from there.
+   */
+  async revert(commit: string): Promise<WriteResult> {
+    const git = this.requireGit();
+    if (git.mode === "off") {
+      throw new BackroomError("unsupported", "Reverting needs git. Set BACKROOM_GIT to commit or sync.");
+    }
+    const commitChanges = await git.commitChanges(commit);
+    return this.write(async (vault) => ({
+      operation: "revert",
+      summary: `Reverted: ${commit}`,
+      changes: planRevert(vault, commit, commitChanges),
+    }));
+  }
+
+  requireGit(): Git {
+    if (!this.git) throw new BackroomError("unsupported", "The vault is not a git repository.");
+    return this.git;
+  }
+
   private async modify(
     ref: FileRef,
     operation: string,
@@ -413,18 +458,27 @@ export class Engine {
     });
   }
 
-  /** Runs one write at a time, so two writes from this process never race each other. */
+  /** Pulls changes from the remote in sync mode, in turn with writes so a pull never lands in the middle of one. */
+  async pull(): Promise<void> {
+    await this.serialized(async () => this.git?.beforeWrite());
+  }
+
   private async write(
     plan: (vault: Vault) => Promise<{ operation: string; summary: string; changes: Change[] }>,
   ): Promise<WriteResult> {
-    const run = async () => {
+    return this.serialized(async () => {
+      await this.git?.beforeWrite();
       const planned = await plan(await this.vault());
       const changes = await applyChanges(this.root, planned.changes);
-      const result = { ...planned, changes };
-      if (changes.length > 0) await this.onWrite(result);
+      const result: WriteResult = { ...planned, changes, warnings: [] };
+      if (changes.length > 0 && this.git) result.warnings = await this.git.afterWrite(result);
       return result;
-    };
-    const next = this.queue.then(run, run);
+    });
+  }
+
+  /** Runs one write or pull at a time, so two of them from this process never race each other. */
+  private serialized<T>(step: () => Promise<T>): Promise<T> {
+    const next = this.queue.then(step, step);
     this.queue = next.catch(() => {});
     return next;
   }
@@ -509,4 +563,61 @@ function moveDestination(vault: Vault, from: string, destination: string): strin
     vault.folders().some((folder) => folder === normalized) ||
     (extension(normalized) === "" && extension(from) !== "");
   return isFolder ? join(normalized, basename(from)) : normalized;
+}
+
+/** Plans the changes that undo a commit, refusing when a file changed since the commit. */
+function planRevert(vault: Vault, commit: string, commitChanges: CommitChange[]): Change[] {
+  const current = (path: string): string | null => {
+    const entry = vault.entry(path);
+    return entry ? (entry.text ?? null) : null;
+  };
+  for (const change of commitChanges) {
+    if (change.path.startsWith(`${TRASH_FOLDER}/`)) continue;
+    if (!isMarkdown(change.path)) {
+      throw new BackroomError(
+        "unsupported",
+        `Commit ${commit} changed "${change.path}", and backroom only reverts notes.`,
+      );
+    }
+    const now = vault.entry(change.path) ? current(change.path) : null;
+    if (now !== change.after) {
+      throw new BackroomError("conflict", `"${change.path}" changed since commit ${commit}, so it cannot be reverted.`);
+    }
+  }
+
+  const visible = commitChanges.filter((change) => !change.path.startsWith(`${TRASH_FOLDER}/`));
+  const trashed = commitChanges.filter(
+    (change) => change.path.startsWith(`${TRASH_FOLDER}/`) && change.before === null,
+  );
+  const removed = visible.filter((change) => change.after === null);
+  let added = visible.filter((change) => change.before === null);
+  const changes: Change[] = [];
+
+  for (const change of removed) {
+    const fromTrash = trashed.find((trash) => trash.after === change.before);
+    if (fromTrash) {
+      changes.push({ kind: "move", from: fromTrash.path, to: change.path, baseVersion: null });
+    } else if (removed.length === 1 && added.length === 1) {
+      const movedTo = added[0]!;
+      added = [];
+      changes.push({
+        kind: "move",
+        from: movedTo.path,
+        to: change.path,
+        baseVersion: vault.version(movedTo.path),
+        text: change.before!,
+      });
+    } else {
+      changes.push({ kind: "create", path: change.path, text: change.before! });
+    }
+  }
+  for (const change of added) {
+    changes.push({ kind: "trash", path: change.path, baseVersion: vault.version(change.path) });
+  }
+  for (const change of visible) {
+    if (change.before !== null && change.after !== null) {
+      changes.push({ kind: "modify", path: change.path, baseVersion: vault.version(change.path), text: change.before });
+    }
+  }
+  return changes;
 }

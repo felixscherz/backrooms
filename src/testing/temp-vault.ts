@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { parseArguments, runCli, type CliResult } from "../cli";
 import { Engine } from "../engine";
+import { Git, runGit, type GitMode } from "../git";
 
 /** A vault in a temporary folder, driven through the CLI the way a user would drive it. */
 export type TempVault = {
@@ -19,9 +20,15 @@ export type TempVault = {
   remove(): Promise<void>;
 };
 
+export type TempVaultOptions = {
+  /** Makes the vault a git repository with one commit of the files, and gives the engine this git mode. */
+  git?: GitMode;
+};
+
 export async function tempVault(
   files: Record<string, string>,
   settings: Record<string, unknown> = {},
+  options: TempVaultOptions = {},
 ): Promise<TempVault> {
   const root = await mkdtemp(join(tmpdir(), "backroom-test-"));
   await mkdir(join(root, ".obsidian"));
@@ -32,7 +39,18 @@ export async function tempVault(
   };
   for (const [path, text] of Object.entries(files)) await write(path, text);
 
-  const engine = new Engine(root);
+  let git: Git | undefined;
+  if (options.git) {
+    for (const args of [
+      ["init", "--quiet"],
+      ["add", "-A"],
+      ["commit", "--quiet", "-m", "initial"],
+    ]) {
+      await runGit(root, ["-c", "user.name=test", "-c", "user.email=test@localhost", ...args]);
+    }
+    git = new Git(root, options.git);
+  }
+  const engine = new Engine(root, { git });
   const run = (...argv: string[]) => runCli(engine, parseArguments(argv));
   return {
     root,

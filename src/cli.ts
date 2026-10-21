@@ -1,4 +1,4 @@
-import { Engine, type FileRef, type FileTarget, type TagCount } from "./engine";
+import { Engine, type FileRef, type FileTarget, type TagCount, type WriteResult } from "./engine";
 import { BackroomError } from "./errors";
 import { propertyValueTypes, type PropertyValueType } from "./frontmatter";
 import type { JsonValue } from "./note";
@@ -156,13 +156,13 @@ const commands: Record<string, Command> = {
         args.required("value"),
         type as PropertyValueType | undefined,
       );
-      return result.summary;
+      return reported(result);
     },
   },
   "property:remove": {
     summary: "Remove a property from a file",
     params: ["name=<name>", "file=<name>", "path=<path>"],
-    run: async (engine, args) => (await engine.propertyRemove(args.ref(), args.required("name"))).summary,
+    run: async (engine, args) => reported(await engine.propertyRemove(args.ref(), args.required("name"))),
   },
   tags: {
     summary: "List tags of a file, or all tags in the vault",
@@ -361,7 +361,7 @@ const commands: Record<string, Command> = {
         overwrite: args.flag("overwrite"),
         version: args.get("version"),
       });
-      return result.summary;
+      return reported(result);
     },
   },
   append: {
@@ -369,8 +369,9 @@ const commands: Record<string, Command> = {
     params: ["file=<name>", "path=<path>", "content=<text>", "inline", "version=<version>"],
     run: async (engine, args) => {
       const content = args.content("content") ?? args.required("content");
-      return (await engine.append(args.ref(), content, { inline: args.flag("inline"), version: args.get("version") }))
-        .summary;
+      return reported(
+        await engine.append(args.ref(), content, { inline: args.flag("inline"), version: args.get("version") }),
+      );
     },
   },
   prepend: {
@@ -378,8 +379,9 @@ const commands: Record<string, Command> = {
     params: ["file=<name>", "path=<path>", "content=<text>", "inline", "version=<version>"],
     run: async (engine, args) => {
       const content = args.content("content") ?? args.required("content");
-      return (await engine.prepend(args.ref(), content, { inline: args.flag("inline"), version: args.get("version") }))
-        .summary;
+      return reported(
+        await engine.prepend(args.ref(), content, { inline: args.flag("inline"), version: args.get("version") }),
+      );
     },
   },
   edit: {
@@ -388,8 +390,9 @@ const commands: Record<string, Command> = {
     run: async (engine, args) => {
       const oldText = args.content("old") ?? args.required("old");
       const newText = args.content("new") ?? args.required("new");
-      return (await engine.edit(args.ref(), oldText, newText, { all: args.flag("all"), version: args.get("version") }))
-        .summary;
+      return reported(
+        await engine.edit(args.ref(), oldText, newText, { all: args.flag("all"), version: args.get("version") }),
+      );
     },
   },
   delete: {
@@ -402,20 +405,49 @@ const commands: Record<string, Command> = {
           "backroom never deletes permanently. Files go to .trash and stay in git history.",
         );
       }
-      return (await engine.delete(args.ref(), { version: args.get("version") })).summary;
+      return reported(await engine.delete(args.ref(), { version: args.get("version") }));
     },
   },
   rename: {
     summary: "Rename a file and update links to it",
     params: ["file=<name>", "path=<path>", "name=<name>"],
-    run: async (engine, args) => (await engine.rename(args.ref(), args.required("name"))).summary,
+    run: async (engine, args) => reported(await engine.rename(args.ref(), args.required("name"))),
   },
   move: {
     summary: "Move or rename a file and update links to it",
     params: ["file=<name>", "path=<path>", "to=<path>"],
-    run: async (engine, args) => (await engine.move(args.ref(), args.required("to"))).summary,
+    run: async (engine, args) => reported(await engine.move(args.ref(), args.required("to"))),
+  },
+  "git:status": {
+    summary: "Show the git status of the vault and whether sync is running (backroom only)",
+    params: [],
+    run: async (engine) => engine.requireGit().status(),
+  },
+  "git:log": {
+    summary: "List recent commits, optionally for one file (backroom only)",
+    params: ["limit=<n>", "path=<path>"],
+    run: async (engine, args) => {
+      const limit = Number(args.get("limit") ?? "20");
+      if (!Number.isInteger(limit) || limit < 1) throw new BackroomError("invalid_argument", "Invalid limit.");
+      return engine.requireGit().log({ limit, path: args.get("path") });
+    },
+  },
+  "git:show": {
+    summary: "Show what a commit changed (backroom only)",
+    params: ["commit=<id>"],
+    run: async (engine, args) => engine.requireGit().show(args.required("commit")),
+  },
+  "git:revert": {
+    summary: "Undo a commit backroom made, as a new commit (backroom only)",
+    params: ["commit=<id>"],
+    run: async (engine, args) => reported(await engine.revert(args.required("commit"))),
   },
 };
+
+/** A write's summary line, followed by any warnings, such as a commit that failed. */
+function reported(result: WriteResult): string {
+  return lines([result.summary, ...result.warnings.map((warning) => `Warning: ${warning}`)]);
+}
 
 async function search(engine: Engine, args: Args) {
   const limit = args.get("limit");

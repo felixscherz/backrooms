@@ -47,11 +47,15 @@ export function createMcpServer(engine: Engine): McpServer {
   return server;
 }
 
-export async function serveStdio(engine: Engine): Promise<void> {
+/** Serves MCP on stdio until the client closes it, pulling from the remote every `pullIntervalMs` in sync mode. */
+export async function serveStdio(engine: Engine, pullIntervalMs: number = 60_000): Promise<void> {
   const server = createMcpServer(engine);
   await server.connect(new StdioServerTransport());
+  const timer = engine.git?.mode === "sync" ? setInterval(() => void engine.pull(), pullIntervalMs) : null;
   await new Promise<void>((resolve) => {
     process.stdin.on("close", resolve);
     process.stdin.on("end", resolve);
   });
+  if (timer) clearInterval(timer);
+  await server.close();
 }

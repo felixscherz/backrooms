@@ -47,7 +47,9 @@ export async function applyChanges(root: string, changes: Change[]): Promise<App
 }
 
 function validatePaths(change: Change) {
-  const paths = change.kind === "move" ? [change.from, change.to] : [change.path];
+  // Moving a file out of .trash restores it, which is the one way backroom touches a hidden folder.
+  const restoring = change.kind === "move" && change.from.startsWith(`${TRASH_FOLDER}/`);
+  const paths = change.kind === "move" ? (restoring ? [change.to] : [change.from, change.to]) : [change.path];
   for (const path of paths) {
     if (normalize(path) !== path || path === "") {
       throw new BackroomError("invalid_argument", `Path "${path}" is not a valid vault path.`);
