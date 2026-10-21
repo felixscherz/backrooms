@@ -249,7 +249,12 @@ function bodyLinks(text: string, masked: string): Link[] {
     const span = { start: match.index, end: match.index + match[0].length };
     taken.push(span);
     const inner = text.slice(span.start + match[1]!.length + 2, span.end - 2);
-    links.push({ ...parseWikilinkInner(inner), syntax: "wikilink", embed: match[1] === "!", location: { kind: "body", span } });
+    links.push({
+      ...parseWikilinkInner(inner),
+      syntax: "wikilink",
+      embed: match[1] === "!",
+      location: { kind: "body", span },
+    });
   }
   for (const match of masked.matchAll(MARKDOWN_LINK)) {
     const span = { start: match.index, end: match.index + match[0].length };
@@ -294,7 +299,13 @@ function splitSubpath(path: string): Pick<Link, "target" | "subpath"> {
   const rest = path.slice(hash + 1);
   const subpath: Subpath = rest.startsWith("^")
     ? { kind: "block", id: rest.slice(1).trim() }
-    : { kind: "heading", headings: rest.split("#").map((part) => part.trim()).filter((part) => part !== "") };
+    : {
+        kind: "heading",
+        headings: rest
+          .split("#")
+          .map((part) => part.trim())
+          .filter((part) => part !== ""),
+      };
   return { target: path.slice(0, hash).trim(), subpath };
 }
 
