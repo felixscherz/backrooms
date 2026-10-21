@@ -27,6 +27,11 @@ async function main(argv: string[]): Promise<number> {
     return 1;
   }
   const engine = new Engine(root);
+  if (invocation.command === "mcp") {
+    const { serveStdio } = await import("./mcp");
+    await serveStdio(engine);
+    return 0;
+  }
   const result = await runCli(engine, invocation);
   if (result.output !== "") process.stdout.write(result.output.endsWith("\n") ? result.output : `${result.output}\n`);
   return result.exitCode;
