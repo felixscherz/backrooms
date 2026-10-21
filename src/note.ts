@@ -53,7 +53,7 @@ export function parseNote(text: string): Note {
     properties,
     tags: uniqueIgnoringCase([...propertyTags(properties), ...inlineTags(masked)]),
     aliases: listProperty(properties, ["aliases", "alias"]),
-    headings: findHeadings(masked),
+    headings: findHeadings(text, masked),
     blockIds: findBlockIds(masked),
     links: [...propertyLinks(properties), ...bodyLinks(text, masked)],
   };
@@ -221,13 +221,17 @@ function uniqueIgnoringCase(values: string[]): string[] {
   });
 }
 
-function findHeadings(masked: string): Heading[] {
+/** Headings are found in the masked text, so code blocks and comments are skipped, but read from the original. */
+function findHeadings(text: string, masked: string): Heading[] {
+  const heading = /^ {0,3}(#{1,6})(?:[ \t]+(.*?))?[ \t]*\r?$/;
+  const originalLines = text.split("\n");
   const headings: Heading[] = [];
   masked.split("\n").forEach((line, index) => {
-    const match = /^ {0,3}(#{1,6})(?:[ \t]+(.*?))?[ \t]*\r?$/.exec(line);
+    if (!heading.test(line)) return;
+    const match = heading.exec(originalLines[index]!);
     if (!match) return;
-    const text = (match[2] ?? "").replace(/(^|[ \t]+)#+$/, "").trim();
-    headings.push({ level: match[1]!.length, text, line: index });
+    const content = (match[2] ?? "").replace(/(^|[ \t]+)#+$/, "").trim();
+    headings.push({ level: match[1]!.length, text: content, line: index });
   });
   return headings;
 }

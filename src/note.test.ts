@@ -65,6 +65,10 @@ describe("headings", () => {
     ]);
   });
 
+  test("inline code in a heading is part of its text", () => {
+    expect(parseNote("## Using `uv` here").headings).toEqual([{ level: 2, text: "Using `uv` here", line: 0 }]);
+  });
+
   test("lines in a fenced code block are not headings", () => {
     expect(parseNote("~~~\n# comment\n~~~").headings).toEqual([]);
   });
