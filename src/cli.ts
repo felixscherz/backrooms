@@ -1,5 +1,6 @@
-import { Engine, type FileRef, type TagCount } from "./engine";
+import { Engine, type FileRef, type FileTarget, type TagCount } from "./engine";
 import { BackroomError } from "./errors";
+import { propertyValueTypes, type PropertyValueType } from "./frontmatter";
 import type { JsonValue } from "./note";
 import { compareNames } from "./paths";
 
@@ -137,6 +138,31 @@ const commands: Record<string, Command> = {
       const value = await engine.propertyRead(args.ref(), args.required("name"));
       return Array.isArray(value) ? lines(value.map(scalarText)) : scalarText(value);
     },
+  },
+  "property:set": {
+    summary: "Set a property on a file",
+    params: ["name=<name>", "value=<value>", `type=${propertyValueTypes.join("|")}`, "file=<name>", "path=<path>"],
+    run: async (engine, args) => {
+      const type = args.get("type");
+      if (type !== undefined && !propertyValueTypes.includes(type as PropertyValueType)) {
+        throw new BackroomError(
+          "invalid_argument",
+          `Invalid type "${type}". Use one of ${propertyValueTypes.join(", ")}.`,
+        );
+      }
+      const result = await engine.propertySet(
+        args.ref(),
+        args.required("name"),
+        args.required("value"),
+        type as PropertyValueType | undefined,
+      );
+      return result.summary;
+    },
+  },
+  "property:remove": {
+    summary: "Remove a property from a file",
+    params: ["name=<name>", "file=<name>", "path=<path>"],
+    run: async (engine, args) => (await engine.propertyRemove(args.ref(), args.required("name"))).summary,
   },
   tags: {
     summary: "List tags of a file, or all tags in the vault",
@@ -317,6 +343,77 @@ const commands: Record<string, Command> = {
       }
       return tsv(Object.entries(info));
     },
+  },
+  create: {
+    summary: "Create a new file",
+    params: ["name=<name>", "path=<path>", "content=<text>", "overwrite", "version=<version>"],
+    run: async (engine, args) => {
+      const path = args.get("path");
+      const name = args.get("name");
+      if (path === undefined && name === undefined)
+        throw new BackroomError("invalid_argument", "Missing required parameter: path or name.");
+      if (args.get("template") !== undefined)
+        throw new BackroomError("unsupported", "Templates are not supported by backroom.");
+      const target: FileTarget = path !== undefined ? { path } : { name: name! };
+      const result = await engine.create({
+        target,
+        content: args.content("content") ?? "",
+        overwrite: args.flag("overwrite"),
+        version: args.get("version"),
+      });
+      return result.summary;
+    },
+  },
+  append: {
+    summary: "Append content to a file",
+    params: ["file=<name>", "path=<path>", "content=<text>", "inline", "version=<version>"],
+    run: async (engine, args) => {
+      const content = args.content("content") ?? args.required("content");
+      return (await engine.append(args.ref(), content, { inline: args.flag("inline"), version: args.get("version") }))
+        .summary;
+    },
+  },
+  prepend: {
+    summary: "Prepend content to a file, after its frontmatter",
+    params: ["file=<name>", "path=<path>", "content=<text>", "inline", "version=<version>"],
+    run: async (engine, args) => {
+      const content = args.content("content") ?? args.required("content");
+      return (await engine.prepend(args.ref(), content, { inline: args.flag("inline"), version: args.get("version") }))
+        .summary;
+    },
+  },
+  edit: {
+    summary: "Replace an exact piece of text in a file (backroom only)",
+    params: ["file=<name>", "path=<path>", "old=<text>", "new=<text>", "all", "version=<version>"],
+    run: async (engine, args) => {
+      const oldText = args.content("old") ?? args.required("old");
+      const newText = args.content("new") ?? args.required("new");
+      return (await engine.edit(args.ref(), oldText, newText, { all: args.flag("all"), version: args.get("version") }))
+        .summary;
+    },
+  },
+  delete: {
+    summary: "Move a file to the vault's .trash folder",
+    params: ["file=<name>", "path=<path>", "version=<version>"],
+    run: async (engine, args) => {
+      if (args.flag("permanent")) {
+        throw new BackroomError(
+          "unsupported",
+          "backroom never deletes permanently. Files go to .trash and stay in git history.",
+        );
+      }
+      return (await engine.delete(args.ref(), { version: args.get("version") })).summary;
+    },
+  },
+  rename: {
+    summary: "Rename a file and update links to it",
+    params: ["file=<name>", "path=<path>", "name=<name>"],
+    run: async (engine, args) => (await engine.rename(args.ref(), args.required("name"))).summary,
+  },
+  move: {
+    summary: "Move or rename a file and update links to it",
+    params: ["file=<name>", "path=<path>", "to=<path>"],
+    run: async (engine, args) => (await engine.move(args.ref(), args.required("to"))).summary,
   },
 };
 

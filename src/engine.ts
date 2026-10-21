@@ -1,8 +1,18 @@
 import { BackroomError, fileNotFound } from "./errors";
+import {
+  inferValueType,
+  parsePropertyValue,
+  removeProperty,
+  setProperty,
+  type PropertyValue,
+  type PropertyValueType,
+} from "./frontmatter";
+import { planMove } from "./move";
 import type { JsonValue, Properties } from "./note";
-import { basename, compareNames, extension, normalize } from "./paths";
+import { basename, compareNames, dirname, extension, isHidden, join, normalize, stem, validateFileName } from "./paths";
 import { matchFile, parseQuery, type FileMatch } from "./search";
 import { Vault, type VaultFile } from "./vault";
+import { applyChanges, type AppliedChange, type Change } from "./write";
 
 /** How a command names a file: `path=` is the exact vault path, `file=` resolves like a wikilink. */
 export type FileRef = { path: string } | { file: string };
@@ -15,12 +25,22 @@ export type Alias = { alias: string; path: string };
 export type UnresolvedLink = { link: string; count: number; sources: string[] };
 export type PropertyCount = { name: string; count: number };
 
+/** A write that was applied, described for the caller and for the commit that records it. */
+export type WriteResult = { operation: string; summary: string; changes: AppliedChange[] };
+
+export type WriteListener = (result: WriteResult) => Promise<void>;
+
 /**
- * The vault engine. Every operation of the CLI and the MCP server exists here once. Each operation loads a fresh
- * picture of the vault.
+ * The vault engine. Every operation of the CLI and the MCP server exists here once. Reads load a fresh picture of
+ * the vault, writes are planned against it and applied through the single write path.
  */
 export class Engine {
-  constructor(readonly root: string) {}
+  private queue: Promise<unknown> = Promise.resolve();
+
+  constructor(
+    readonly root: string,
+    private readonly onWrite: WriteListener = async () => {},
+  ) {}
 
   async vault(): Promise<Vault> {
     return Vault.load(this.root);
@@ -223,7 +243,189 @@ export class Engine {
       size: files.reduce((sum, file) => sum + file.size, 0),
     };
   }
+
+  // Writing
+
+  /**
+   * Creates a note. An existing file is only replaced with `overwrite`, and then only when `version` names the
+   * version the new content is based on.
+   */
+  async create(options: {
+    target: FileTarget;
+    content: string;
+    overwrite?: boolean;
+    version?: string;
+  }): Promise<WriteResult> {
+    return this.write(async (vault) => {
+      const path = newFilePath(vault, options.target);
+      const existing = vault.fileIgnoringCase(path);
+      if (existing) {
+        if (!options.overwrite) throw new BackroomError("already_exists", `File "${existing.path}" already exists.`);
+        if (options.version === undefined) {
+          throw new BackroomError(
+            "invalid_argument",
+            `Overwriting "${existing.path}" needs the version it replaces (version=).`,
+          );
+        }
+        checkVersion(vault, existing.path, options.version);
+        return {
+          operation: "create",
+          summary: `Overwrote: ${existing.path}`,
+          changes: [{ kind: "modify", path: existing.path, baseVersion: options.version, text: options.content }],
+        };
+      }
+      return {
+        operation: "create",
+        summary: `Created: ${path}`,
+        changes: [{ kind: "create", path, text: options.content }],
+      };
+    });
+  }
+
+  /** Adds content at the end of a note, on a new line unless `inline`. */
+  async append(
+    ref: FileRef,
+    content: string,
+    options: { inline?: boolean; version?: string } = {},
+  ): Promise<WriteResult> {
+    return this.modify(ref, "append", options.version, (text, path) => {
+      const separator = options.inline || text === "" || text.endsWith("\n") ? "" : "\n";
+      const trailing = !options.inline && text.endsWith("\n") && !content.endsWith("\n") ? "\n" : "";
+      return { text: text + separator + content + trailing, summary: `Appended to: ${path}` };
+    });
+  }
+
+  /** Adds content at the start of a note's body, after the frontmatter. */
+  async prepend(
+    ref: FileRef,
+    content: string,
+    options: { inline?: boolean; version?: string } = {},
+  ): Promise<WriteResult> {
+    return this.modify(ref, "prepend", options.version, (text, path, vault) => {
+      const frontmatter = vault.note(path).frontmatter;
+      const at = frontmatter.kind === "none" ? 0 : frontmatter.span.end;
+      const separator = options.inline || content.endsWith("\n") ? "" : "\n";
+      return { text: text.slice(0, at) + content + separator + text.slice(at), summary: `Prepended to: ${path}` };
+    });
+  }
+
+  /**
+   * Replaces an exact piece of text in a note. The text has to occur exactly once, or `all` has to be set, so an
+   * edit never lands somewhere the caller did not expect.
+   */
+  async edit(
+    ref: FileRef,
+    oldText: string,
+    newText: string,
+    options: { all?: boolean; version?: string } = {},
+  ): Promise<WriteResult> {
+    if (oldText === "") throw new BackroomError("invalid_argument", "The text to replace (old=) must not be empty.");
+    return this.modify(ref, "edit", options.version, (text, path) => {
+      const count = text.split(oldText).length - 1;
+      if (count === 0) throw new BackroomError("not_found", `The text to replace was not found in "${path}".`);
+      if (count > 1 && !options.all) {
+        throw new BackroomError(
+          "invalid_argument",
+          `The text to replace occurs ${count} times in "${path}". Give more context to make it unique, or set all.`,
+        );
+      }
+      return {
+        text: text.split(oldText).join(newText),
+        summary: `Edited: ${path} (${count} ${count === 1 ? "replacement" : "replacements"})`,
+      };
+    });
+  }
+
+  async propertySet(ref: FileRef, name: string, rawValue: string, type?: PropertyValueType): Promise<WriteResult> {
+    if (name.trim() === "") throw new BackroomError("invalid_argument", "Property name must not be empty.");
+    return this.modify(ref, "property:set", undefined, (text, path, vault) => {
+      const current = vault.note(path).properties[name];
+      const value: PropertyValue = parsePropertyValue(
+        rawValue,
+        type ?? inferValueType(vault.settings.propertyTypes[name], current),
+      );
+      return { text: setProperty(text, name, value), summary: `Set ${name}: ${rawValue}` };
+    });
+  }
+
+  async propertyRemove(ref: FileRef, name: string): Promise<WriteResult> {
+    return this.modify(ref, "property:remove", undefined, (text, path) => ({
+      text: removeProperty(text, name),
+      summary: `Removed ${name} from: ${path}`,
+    }));
+  }
+
+  /** Moves a file to the vault's `.trash` folder. */
+  async delete(ref: FileRef, options: { version?: string } = {}): Promise<WriteResult> {
+    return this.write(async (vault) => {
+      const path = resolveRef(vault, ref);
+      const isNote = vault.entry(path)?.text !== null;
+      if (options.version !== undefined) checkVersion(vault, path, options.version);
+      return {
+        operation: "delete",
+        summary: `Moved to trash: ${path}`,
+        changes: [{ kind: "trash", path, baseVersion: isNote ? (options.version ?? vault.version(path)) : null }],
+      };
+    });
+  }
+
+  /** Renames a file in its folder and updates links to it. Without an extension, the name keeps the old one. */
+  async rename(ref: FileRef, name: string): Promise<WriteResult> {
+    return this.write(async (vault) => {
+      const from = resolveRef(vault, ref);
+      if (name.includes("/"))
+        throw new BackroomError("invalid_argument", "A new name cannot contain a folder. Use move instead.");
+      const ext = extension(from);
+      const fileName = ext !== "" && extension(name).toLowerCase() !== ext.toLowerCase() ? `${name}.${ext}` : name;
+      const to = join(dirname(from), fileName);
+      return { operation: "rename", summary: `Renamed: ${from} -> ${to}`, changes: planMove(vault, from, to) };
+    });
+  }
+
+  /** Moves a file to a folder or a new path and updates links to it. */
+  async move(ref: FileRef, destination: string): Promise<WriteResult> {
+    return this.write(async (vault) => {
+      const from = resolveRef(vault, ref);
+      const to = moveDestination(vault, from, destination);
+      return { operation: "move", summary: `Moved: ${from} -> ${to}`, changes: planMove(vault, from, to) };
+    });
+  }
+
+  private async modify(
+    ref: FileRef,
+    operation: string,
+    version: string | undefined,
+    change: (text: string, path: string, vault: Vault) => { text: string; summary: string },
+  ): Promise<WriteResult> {
+    return this.write(async (vault) => {
+      const path = resolveMarkdown(vault, ref);
+      if (version !== undefined) checkVersion(vault, path, version);
+      const { text, summary } = change(vault.text(path), path, vault);
+      const changes: Change[] =
+        text === vault.text(path) ? [] : [{ kind: "modify", path, baseVersion: vault.version(path), text }];
+      return { operation, summary, changes };
+    });
+  }
+
+  /** Runs one write at a time, so two writes from this process never race each other. */
+  private async write(
+    plan: (vault: Vault) => Promise<{ operation: string; summary: string; changes: Change[] }>,
+  ): Promise<WriteResult> {
+    const run = async () => {
+      const planned = await plan(await this.vault());
+      const changes = await applyChanges(this.root, planned.changes);
+      const result = { ...planned, changes };
+      if (changes.length > 0) await this.onWrite(result);
+      return result;
+    };
+    const next = this.queue.then(run, run);
+    this.queue = next.catch(() => {});
+    return next;
+  }
 }
+
+/** Where a new file goes: an exact path, or a name placed by the vault's new file location setting. */
+export type FileTarget = { path: string } | { name: string };
 
 function resolveRef(vault: Vault, ref: FileRef): string {
   if ("path" in ref) {
@@ -248,8 +450,52 @@ function textOf(vault: Vault, path: string): string {
   return vault.text(path);
 }
 
+function checkVersion(vault: Vault, path: string, version: string) {
+  if (vault.version(path) !== version) {
+    throw new BackroomError(
+      "conflict",
+      `File "${path}" changed since version ${version}. Read it again and retry the change.`,
+    );
+  }
+}
+
 function normalizeFolder(folder: string): string {
   const normalized = normalize(folder);
   if (normalized === null) throw new BackroomError("invalid_argument", `Folder "${folder}" is outside the vault.`);
   return normalized;
+}
+
+function newFilePath(vault: Vault, target: FileTarget): string {
+  let path: string;
+  if ("path" in target) {
+    const normalized = normalize(target.path);
+    if (normalized === null || normalized === "")
+      throw new BackroomError("invalid_argument", `Path "${target.path}" is not a valid vault path.`);
+    path = normalized;
+  } else {
+    if (target.name.includes("/"))
+      throw new BackroomError("invalid_argument", "A name cannot contain a folder. Use path instead.");
+    const folder = vault.settings.newFileLocation === "folder" ? normalizeFolder(vault.settings.newFileFolderPath) : "";
+    path = join(folder, target.name);
+  }
+  if (extension(path) === "") path = `${path}.md`;
+  if (isHidden(path))
+    throw new BackroomError("invalid_argument", `Path "${path}" is in a hidden folder, which backroom does not touch.`);
+  const nameError = validateFileName(stem(path));
+  if (nameError) throw new BackroomError("invalid_argument", nameError);
+  if (extension(path).toLowerCase() !== "md") {
+    throw new BackroomError("unsupported", "backroom only creates markdown notes.");
+  }
+  return path;
+}
+
+function moveDestination(vault: Vault, from: string, destination: string): string {
+  const normalized = normalize(destination);
+  if (normalized === null) throw new BackroomError("invalid_argument", `"${destination}" is outside the vault.`);
+  const isFolder =
+    normalized === "" ||
+    destination.endsWith("/") ||
+    vault.folders().some((folder) => folder === normalized) ||
+    (extension(normalized) === "" && extension(from) !== "");
+  return isFolder ? join(normalized, basename(from)) : normalized;
 }
