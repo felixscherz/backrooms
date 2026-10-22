@@ -62,8 +62,11 @@ describe("outline", () => {
     ]);
   });
 
-  test("the default tree indents headings by level", async () => {
-    expect(await vault.ok("outline", "path=Alpha.md")).toBe("Alpha\n  Second heading\n    Third");
+  test("the default tree draws each heading below the closest heading with a lower level", async () => {
+    const levels = await tempVault({ "Levels.md": "# A\n### B\n## C\n# D\n" });
+
+    expect(await levels.ok("outline", "path=Levels.md")).toBe("├── A\n│   ├── B\n│   └── C\n└── D");
+    await levels.remove();
   });
 });
 

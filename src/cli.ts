@@ -1,4 +1,4 @@
-import { Engine, type FileRef, type FileTarget, type TagCount, type WriteResult } from "./engine";
+import { Engine, type FileRef, type FileTarget, type OutlineHeading, type TagCount, type WriteResult } from "./engine";
 import { BackroomError } from "./errors";
 import { propertyValueTypes, type PropertyValueType } from "./frontmatter";
 import type { JsonValue } from "./note";
@@ -91,10 +91,8 @@ const commands: Record<string, Command> = {
           return json(headings);
         case "md":
           return lines(headings.map((heading) => `${"#".repeat(heading.level)} ${heading.heading}`));
-        case "tree": {
-          const top = Math.min(...headings.map((heading) => heading.level));
-          return lines(headings.map((heading) => `${"  ".repeat(heading.level - top)}${heading.heading}`));
-        }
+        case "tree":
+          return outlineTree(headings);
       }
     },
   },
@@ -452,6 +450,32 @@ const commands: Record<string, Command> = {
     run: async (engine, args) => reported(await engine.revert(args.required("commit"))),
   },
 };
+
+/**
+ * Draws headings as a tree like the Obsidian CLI: each heading sits below the closest heading before it with a
+ * lower level, whatever the levels in between.
+ */
+function outlineTree(headings: OutlineHeading[]): string {
+  type Node = { heading: string; children: Node[] };
+  const roots: Node[] = [];
+  const open: { level: number; node: Node }[] = [];
+  for (const { level, heading } of headings) {
+    while (open.length > 0 && open[open.length - 1]!.level >= level) open.pop();
+    const node: Node = { heading, children: [] };
+    (open.length > 0 ? open[open.length - 1]!.node.children : roots).push(node);
+    open.push({ level, node });
+  }
+  const rows: string[] = [];
+  const draw = (nodes: Node[], indent: string) => {
+    nodes.forEach((node, index) => {
+      const last = index === nodes.length - 1;
+      rows.push(`${indent}${last ? "└── " : "├── "}${node.heading}`);
+      draw(node.children, indent + (last ? "    " : "│   "));
+    });
+  };
+  draw(roots, "");
+  return lines(rows);
+}
 
 /** A write's summary line, followed by any warnings, such as a commit that failed. */
 function reported(result: WriteResult): string {

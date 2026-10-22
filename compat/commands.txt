@@ -12,10 +12,14 @@ read file=First
 file path=folder
 file path="Nope.md"
 
+outline path="Alpha.md"
 outline path="Alpha.md" format=json
 outline path="Alpha.md" format=md
 outline path="Alpha.md" total
+outline path="projects/Project Plan.md"
+outline path="outline/Nested headings.md"
 outline path="outline/Nested headings.md" format=json
+outline path="syntax/Comments tasks and blocks.md"
 outline path="Beta.md" format=json
 outline path="folder/sub/Delta.md"
 
