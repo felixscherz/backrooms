@@ -30,7 +30,7 @@ The project offers two interfaces, a CLI and an MCP server, as thin layers over 
   the same names, with `:` replaced by `_` (`search:context` becomes `search_context`), because MCP tool names do not
   allow colons. Operations the Obsidian CLI has no command for get their own names.
 - The MCP server supports the stdio transport for local clients and the streamable HTTP transport for remote clients.
-  Remote access requires authentication. How authentication and deployment work is decided in a later ADR.
+  Remote access requires authentication, which ADR 8 decides.
 
 ## Consequences
 

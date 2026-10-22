@@ -68,7 +68,7 @@ The first set of operations is what the `second-brain` skill uses today, plus wh
 ## Open questions
 
 - Is search plain text matching with Obsidian's search syntax, or does it also need semantic search over embeddings?
-- How do remote clients authenticate, and how is backroom deployed on the VM?
+- How is backroom deployed on the VM? Remote clients authenticate through backroom's own OAuth server (ADR 8).
 - One vault per process, or several?
 - Does backroom pick seed notes for review sessions itself, or does it offer queries that let an agent do the scoring
   that `pick_review.py` does today?
