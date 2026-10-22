@@ -123,8 +123,8 @@ export async function createMcpServer(engine: Engine): Promise<McpServer> {
         "section returns the text under one heading, from the heading line to the next heading of the same or a " +
         "higher level, instead of the whole note. Give the heading's text, or a path of headings such as " +
         '"June > 2026-06-23" when several headings have the same text. If it matches several headings, the error ' +
-        "lists each as a heading path with its line number. To add a line under a heading, read the section and " +
-        "then use edit with a replace anchored on its text.",
+        "lists each as a heading path with its line number. To add a line under a heading, use edit with " +
+        "append_to_section; there is no need to read the section first.",
       inputSchema: {
         notes: z
           .union([z.string(), z.array(z.string()).min(1)])
