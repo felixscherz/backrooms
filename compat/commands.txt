@@ -154,6 +154,27 @@ folders folder=projects
 ~ search query="content:pizza"
 ~ search query="line:(pizza recipe)"
 ~ search query="line:(pizza continues)"
+~ search query="block:(pizza continues)"
+~ search query="block:(pizza two)"
+~ search query="section:(pizza continues)"
+~ search query="task:pizza"
+~ search query="task-todo:pizza"
+~ search query="task-done:pizza"
+~ search query="match-case:Pizza"
+~ search query="ignore-case:PIZZA"
+~ search query="task-todo:open"
+~ search query="task-done:open"
+~ search query="task:(open done)"
+~ search query="task:(open pizza)"
+~ search query="section:(intro pizza)"
+~ search query="section:(alpha intro)"
+~ search query="section:(heading recipe)"
+~ search query="block:(heading recipe)"
+~ search query="block:(mention task)"
+~ search query="match-case:pizza"
+~ search query="match-case:/Pizza|PIZZA/"
+~ search query="ignore-case:/PIZZA/" case
+~ search query="match-case:(Pizza dough)"
 ~ search query="[rating:4]"
 ~ search query="[status]"
 ~ search query="[done:true]"
@@ -166,6 +187,7 @@ folders folder=projects
 ~ search query=pizza format=json
 search query=pizza total
 search query=nothingmatches
+search query="foo:bar"
 search query=nothingmatches format=json
 ~ search:context query=pizza
 ~ search:context query=pizza format=json

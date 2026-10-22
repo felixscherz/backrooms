@@ -5,7 +5,9 @@ import { basename } from "./paths";
 /**
  * A parsed search query in Obsidian's search syntax. Words are combined with AND, `OR` and parentheses group,
  * `-` negates, `"..."` matches a phrase and `/.../` a regular expression. The operators `file:`, `path:`,
- * `content:`, `line:`, `tag:` and `[property]` / `[property:value]` narrow what a term is matched against.
+ * `content:`, `tag:` and `[property]` / `[property:value]` narrow what a term is matched against, `line:`,
+ * `block:`, `section:`, `task:`, `task-todo:` and `task-done:` require their terms to match within one part of
+ * the note, and `match-case:` and `ignore-case:` set the case sensitivity of their terms.
  */
 export type Query =
   | { kind: "text"; text: string }
@@ -14,13 +16,18 @@ export type Query =
   | { kind: "or"; parts: Query[] }
   | { kind: "not"; part: Query }
   | { kind: "field"; field: TextField; part: Query }
-  | { kind: "line"; part: Query }
+  | { kind: "within"; unit: Unit; part: Query }
+  | { kind: "case"; caseSensitive: boolean; part: Query }
   | { kind: "tag"; tag: string }
   | { kind: "property"; name: string; value: Query | null };
 
 type TextField = "file" | "path" | "content";
 
-const UNSUPPORTED_OPERATORS = ["block", "section", "task", "task-todo", "task-done", "match-case", "ignore-case"];
+/** A part of a note that the terms of an operator have to match within. */
+type Unit = "line" | "block" | "section" | "task" | "task-todo" | "task-done";
+
+const UNITS: readonly string[] = ["line", "block", "section", "task", "task-todo", "task-done"];
+const FIELDS: readonly string[] = ["file", "path", "content"];
 
 export type SearchOptions = { caseSensitive: boolean };
 
@@ -65,8 +72,10 @@ function evaluate(query: Query, scope: Scope, options: SearchOptions): boolean {
       return !evaluate(query.part, scope, options);
     case "field":
       return evaluate(query.part, { ...scope, texts: [fieldText(query.field, scope.file)] }, options);
-    case "line":
-      return scope.file.text.split("\n").some((line) => evaluate(query.part, { ...scope, texts: [line] }, options));
+    case "within":
+      return unitsOf(query.unit, scope.file).some((unit) => evaluate(query.part, { ...scope, texts: [unit] }, options));
+    case "case":
+      return evaluate(query.part, scope, { caseSensitive: query.caseSensitive });
     case "tag": {
       const wanted = query.tag.toLowerCase();
       return scope.file.note.tags.some((tag) => {
@@ -116,7 +125,8 @@ function positiveTerms(query: Query): (Query & { kind: "text" | "regex" })[] {
     case "and":
     case "or":
       return query.parts.flatMap(positiveTerms);
-    case "line":
+    case "within":
+    case "case":
       return positiveTerms(query.part);
     case "field":
       return query.field === "content" ? positiveTerms(query.part) : [];
@@ -125,12 +135,101 @@ function positiveTerms(query: Query): (Query & { kind: "text" | "regex" })[] {
   }
 }
 
+/** The parts of a note that the terms of a `line:`, `block:`, `section:` or `task:` operator match within. */
+function unitsOf(unit: Unit, file: SearchableFile): string[] {
+  const lines = file.text.split("\n").map((line) => line.replace(/\r$/, ""));
+  switch (unit) {
+    case "line":
+      return lines;
+    case "block":
+      return blocks(lines, file.note);
+    case "section": {
+      const starts = [0, ...file.note.headings.map((heading) => heading.line).filter((line) => line > 0)];
+      return starts.map((start, index) => lines.slice(start, starts[index + 1]).join("\n"));
+    }
+    case "task":
+    case "task-todo":
+    case "task-done":
+      return tasks(lines, file.note).flatMap((task) =>
+        unit === "task" || (unit === "task-todo") === (task.status === " ") ? [task.text] : [],
+      );
+  }
+}
+
+type BodyLine = { index: number; text: string; code: "fence" | "inside" | null };
+
+/** The lines after the frontmatter, each marked when it opens or closes a code block, or lies inside one. */
+function bodyLines(lines: string[], note: Note): BodyLine[] {
+  const start =
+    note.frontmatter.kind === "none" ? 0 : lines.findIndex((line, index) => index > 0 && /^---[ \t]*$/.test(line)) + 1;
+  let fence: string | null = null;
+  return lines.slice(start).map((text, offset): BodyLine => {
+    const index = start + offset;
+    if (fence !== null) {
+      if (!text.trimStart().startsWith(fence) || text.trim().replace(/[`~]/g, "") !== "") {
+        return { index, text, code: "inside" };
+      }
+      fence = null;
+      return { index, text, code: "fence" };
+    }
+    const opening = /^ {0,3}(`{3,}|~{3,})/.exec(text);
+    if (!opening) return { index, text, code: null };
+    fence = opening[1]!;
+    return { index, text, code: "fence" };
+  });
+}
+
+/**
+ * Splits a note into its markdown blocks, as Obsidian's `block:` sees them: the frontmatter, each heading, each
+ * code block, and paragraphs and lists, which blank lines separate and a list item also starts.
+ */
+function blocks(lines: string[], note: Note): string[] {
+  const body = bodyLines(lines, note);
+  const result = body[0] && body[0].index > 0 ? [lines.slice(0, body[0].index).join("\n")] : [];
+  const headings = new Set(note.headings.map((heading) => heading.line));
+  let current: string[] = [];
+  let kind: "paragraph" | "list" | "code" | null = null;
+  const flush = () => {
+    if (current.length > 0) result.push(current.join("\n"));
+    current = [];
+    kind = null;
+  };
+  for (const line of body) {
+    if (line.code !== null) {
+      if (kind !== "code") flush();
+      kind = "code";
+      current.push(line.text);
+      if (line.code === "fence" && current.length > 1) flush();
+    } else if (line.text.trim() === "") {
+      flush();
+    } else if (headings.has(line.index)) {
+      flush();
+      result.push(line.text);
+    } else {
+      const listItem = /^\s*(?:[-*+]|\d+[.)])\s/.test(line.text);
+      if ((listItem && kind !== "list") || kind === "code") flush();
+      kind ??= listItem ? "list" : "paragraph";
+      current.push(line.text);
+    }
+  }
+  flush();
+  return result;
+}
+
+/** The tasks of a note outside code blocks, with the character in their checkbox and the text after it. */
+function tasks(lines: string[], note: Note): { status: string; text: string }[] {
+  return bodyLines(lines, note).flatMap((line) => {
+    const task = line.code === null ? /^\s*(?:[-*+]|\d+[.)])\s+\[(.)\](?:\s+(.*))?$/.exec(line.text) : null;
+    return task ? [{ status: task[1]!, text: task[2] ?? "" }] : [];
+  });
+}
+
 class Parser {
   private position = 0;
 
   constructor(
     private readonly input: string,
-    private readonly options: SearchOptions,
+    private options: SearchOptions,
   ) {}
 
   parseAll(): Query | null {
@@ -184,14 +283,8 @@ class Parser {
 
     const operator = /^([a-z-]+):/.exec(this.input.slice(this.position));
     if (operator) {
-      const name = operator[1]!;
-      if (UNSUPPORTED_OPERATORS.includes(name)) {
-        throw new BackroomError("unsupported", `The search operator "${name}:" is not supported.`);
-      }
-      if (["file", "path", "content", "line", "tag"].includes(name)) {
-        this.position += operator[0].length;
-        return this.parseOperator(name);
-      }
+      this.position += operator[0].length;
+      return this.parseOperator(operator[1]!);
     }
     return { kind: "text", text: this.parseWord() };
   }
@@ -201,9 +294,18 @@ class Parser {
       const tag = this.peek() === '"' ? this.parseQuoted() : this.parseWord();
       return { kind: "tag", tag: tag.replace(/^#/, "") };
     }
-    const part = this.parseOperand();
-    if (name === "line") return { kind: "line", part };
-    return { kind: "field", field: name as TextField, part };
+    if (name === "match-case" || name === "ignore-case") {
+      const outer = this.options;
+      this.options = { caseSensitive: name === "match-case" };
+      try {
+        return { kind: "case", caseSensitive: this.options.caseSensitive, part: this.parseOperand() };
+      } finally {
+        this.options = outer;
+      }
+    }
+    if (UNITS.includes(name)) return { kind: "within", unit: name as Unit, part: this.parseOperand() };
+    if (FIELDS.includes(name)) return { kind: "field", field: name as TextField, part: this.parseOperand() };
+    throw new BackroomError("invalid_argument", `Operator "${name}" not recognized`);
   }
 
   /** The value after an operator: a group, a phrase, a regex or a word. */

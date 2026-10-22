@@ -76,8 +76,68 @@ describe("search syntax", () => {
     expect(search("[cuisine:french]")).toEqual([]);
   });
 
-  test("operators backroom does not implement are reported, not ignored", () => {
-    expect(() => parseQuery("section:(pizza)", { caseSensitive: false })).toThrow('"section:" is not supported');
+  test("an unknown operator is an error in the Obsidian CLI's wording", () => {
+    expect(() => search("cuisine:italian")).toThrow('Operator "cuisine" not recognized');
+  });
+});
+
+describe("operators for parts of a note", () => {
+  const note = {
+    path: "Note.md",
+    text: [
+      "---",
+      "mood: happy",
+      "---",
+      "# Plan",
+      "Buy flour",
+      "- [ ] bake bread",
+      "- [x] buy yeast",
+      "",
+      "## Later",
+      "Eat bread with butter",
+      "and jam",
+      "```",
+      "flour in code",
+      "```",
+    ].join("\n"),
+  };
+  const matches = (query: string) => {
+    const options = { caseSensitive: false };
+    return matchFile(parseQuery(query, options), { ...note, note: parseNote(note.text) }, options) !== null;
+  };
+
+  test("block: matches within one paragraph, list, heading, code block or the frontmatter", () => {
+    expect(matches("block:(butter jam)")).toBe(true);
+    expect(matches("block:(bake yeast)")).toBe(true);
+    expect(matches("block:(flour bake)")).toBe(false);
+    expect(matches("block:(plan flour)")).toBe(false);
+    expect(matches("block:(mood happy)")).toBe(true);
+    expect(matches("block:(code jam)")).toBe(false);
+  });
+
+  test("section: matches between one heading and the next", () => {
+    expect(matches("section:(plan yeast)")).toBe(true);
+    expect(matches("section:(plan butter)")).toBe(false);
+    expect(matches("section:(later code)")).toBe(true);
+  });
+
+  test("task:, task-todo: and task-done: match within one task", () => {
+    expect(matches("task:(bake bread)")).toBe(true);
+    expect(matches("task:(bake yeast)")).toBe(false);
+    expect(matches("task-todo:bake")).toBe(true);
+    expect(matches("task-todo:yeast")).toBe(false);
+    expect(matches("task-done:yeast")).toBe(true);
+  });
+
+  test("match-case: and ignore-case: set the case sensitivity of their part", () => {
+    expect(matches("match-case:Plan")).toBe(true);
+    expect(matches("match-case:plan")).toBe(false);
+    expect(matches("match-case:/Pl.n/")).toBe(true);
+    expect(matches("match-case:/pl.n/")).toBe(false);
+    const options = { caseSensitive: true };
+    expect(
+      matchFile(parseQuery("ignore-case:/PLAN/", options), { ...note, note: parseNote(note.text) }, options),
+    ).not.toBe(null);
   });
 });
 
