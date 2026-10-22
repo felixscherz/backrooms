@@ -6,8 +6,8 @@ Claude app on a phone through MCP.
 
 - [docs/vision.md](docs/vision.md) explains why backroom exists and what it is for.
 - [docs/obsidian-cli-coverage.md](docs/obsidian-cli-coverage.md) lists the Obsidian CLI features backroom needs.
-- [docs/compatibility.md](docs/compatibility.md) says which commands backroom implements and how sure we are that each
-  behaves like Obsidian.
+- [docs/compatibility.md](docs/compatibility.md) says which commands backroom implements, how they are checked against
+  Obsidian, and where backroom deliberately differs.
 - [docs/adr/](docs/adr/) holds the architecture decisions.
 
 ## Usage
@@ -87,3 +87,5 @@ bun run build                   # single executable in dist/backroom
 ```
 
 The tests drive the CLI against temporary vaults on disk, and the git tests use real repositories with a bare remote.
+`compat/compat.test.ts` checks that backroom answers like the Obsidian CLI on [test-vault/](test-vault/), against
+answers recorded with `bun compat/record.ts` (see [docs/compatibility.md](docs/compatibility.md)).

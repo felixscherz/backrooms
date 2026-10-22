@@ -1,62 +1,77 @@
 # Compatibility with the Obsidian CLI
 
-What backroom implements, and how well each behavior is pinned to Obsidian. ADR 1 asks for every behavior to be checked
-against the real Obsidian app before it ships. That has not happened yet for most of them: when the first version was
-built, the Obsidian app on the laptop was stuck behind a dialog and its CLI did not answer.
+What backroom implements, and how it is checked against Obsidian. ADR 1 makes Obsidian's behavior the spec, so the
+check is automated: backroom has to answer like the real Obsidian CLI on a test vault.
 
-The evidence used instead:
+## How it is checked
 
-- **Recorded**: output of the real Obsidian CLI (1.13.7, installer 1.12.7) on the personal vault, found in earlier
-  agent sessions. Formats marked this way match that output.
-- **Help**: the parameter list of `obsidian help`. Parameters match, output is assumed.
-- **Assumed**: backroom's best guess. Needs checking against Obsidian.
+[test-vault/](../test-vault/) is a small vault built to cover what tends to differ: links of every kind, nested and
+case-variant tags, an excluded folder, broken frontmatter, Windows line endings, unusual property values, and notes
+for word counting and sort order. It is opened in Obsidian as the vault `test-vault`.
+
+- [compat/commands.txt](../compat/commands.txt) lists read commands and [compat/writes.txt](../compat/writes.txt)
+  write commands.
+- `bun compat/record.ts` runs each of them through the Obsidian CLI, stores the answers and the files each write
+  changed in [compat/obsidian.json](../compat/obsidian.json), and resets the notes of test-vault with git after
+  each write. It needs Obsidian running with test-vault open, and reloads the vault first.
+- [compat/compat.test.ts](../compat/compat.test.ts) runs the same commands through backroom, each write on a copy of
+  the vault, and expects the same output and the same file changes. It is part of `bun test`.
+
+The recording was made with Obsidian 1.13.7 (installer 1.12.7). After an Obsidian update, record again and the test
+shows what changed. To pin down a new behavior, add a note to test-vault and the command to one of the lists.
+
+Some behaviors were also checked on a copy of the personal vault, which has about 870 files: the tag list with its
+counts matches exactly, and so do the word counts of 53 notes.
 
 ## Commands
 
-| Command | Evidence | Notes |
-| --- | --- | --- |
-| `read` | Assumed | Prints the file as stored. |
-| `file` | Assumed | `key<TAB>value` lines. Adds `version`, which Obsidian does not have. |
-| `outline` | Assumed | `format=json` gives `{level, heading, line}` with 1-based lines. Tree output indents by 2 spaces per level. |
-| `properties` | Assumed | With a file: the frontmatter as written (yaml), the parsed object (json) or `name<TAB>value` (tsv). Without: property names, `counts` adds counts. |
-| `property:read` | Assumed | Lists print one item per line. |
-| `property:set` | Recorded | `Set <name>: <value>` and the datetime error message are recorded. Writing lists in block style and taking the type from `.obsidian/types.json`, then from the current value, when `type` is missing are assumed. backroom edits the YAML in place, where Obsidian may reformat the frontmatter. |
-| `property:remove` | Assumed | |
-| `tags` | Recorded | json `[{"tag": "#x", "count": "3"}]` with counts as strings. The vault listing includes parent tags and leaves out excluded files. That a parent counts once per nested tag below it is inferred from the recorded counts. |
-| `tag` | Recorded | `#tag<TAB>count`, then the files with `verbose`. Includes notes with nested tags (assumed). |
-| `aliases` | Assumed | `verbose` gives `alias<TAB>path`. |
-| `links` | Recorded | Sorted, one per target, unresolved ones as `Name (unresolved)`. That embeds count as links is assumed. |
-| `backlinks` | Recorded | `No backlinks found.` when empty. json `[{"file": "...", "count": "1"}]`. Links from properties count. |
-| `unresolved` | Recorded | json `[{"link", "count", "sources"}]` with counts as strings and sources joined by `, `. |
-| `orphans`, `deadends` | Help | `orphans` counts links from other notes only. |
-| `files`, `folders` | Help | Hidden folders are not part of the vault. |
-| `search` | Recorded | One path per line, `No matches found.` when empty. Matches content and file path. |
-| `search:context` | Assumed | Text output is `path:line: text`. json `[{"file", "matches": [{"line", "text"}]}]` with 1-based lines. |
-| `wordcount`, `vault` | Assumed | |
-| `create` | Recorded | `Created: <path>`. Refuses to replace a file, `overwrite` needs `version=`. Creates missing folders. `template=` is not supported. |
-| `append`, `prepend` | Assumed | Content goes on its own line unless `inline`. `prepend` inserts after the frontmatter. Output `Appended to: <path>` is assumed. |
-| `delete` | Recorded | `Moved to trash: <path>`, always into `.trash/`. `permanent` is not supported. |
-| `rename` | Recorded | `Renamed: <old> -> <new>`. A name without extension keeps the old one. |
-| `move` | Assumed | `Moved: <old> -> <new>`. A destination ending in `/`, an existing folder or a path without extension is a folder. |
+All of these match Obsidian on test-vault, with the differences listed below.
+
+- Reading: `read`, `file`, `outline`, `properties`, `property:read`, `tags`, `tag`, `aliases`, `links`, `backlinks`,
+  `unresolved`, `orphans`, `deadends`, `files`, `folders`, `search`, `search:context`, `wordcount`, `vault`.
+- Writing: `create`, `append`, `prepend`, `property:set`, `property:remove`, `delete`, `rename`, `move`.
 
 Commands that need the app (`open`, `command`, `search:open`, `tab:open`, `random`) report that they are unsupported.
 Everything else the Obsidian CLI offers, such as bookmarks, bases, tasks, plugins or sync history, reports an unknown
 command.
 
-## Vault behavior
+## How Obsidian behaves
 
-| Behavior | Evidence | Notes |
-| --- | --- | --- |
-| Link resolution | Assumed | Exact path, then relative to the linking note, then by name; ties go to the linking note's folder, then the shortest path. Case is ignored. Aliases do not resolve links. |
-| Link updates on rename and move | Assumed | Every link to the moved file is written anew with the vault's `newLinkFormat`, keeping subpath, display text and the link's syntax. Other links are only rewritten if the move would change where they point. |
-| Tags | Assumed | Inline tags after whitespace, at least one non-digit, not in code or `%%` comments, plus the `tags` property. Case-insensitive, once per note. |
-| Frontmatter | Assumed | Only at the very start of the file, closed by `---`. Invalid YAML gives no properties, and backroom refuses to change properties of such a note. |
-| Excluded files | Recorded | `userIgnoreFilters` hide files from `tags`, `tag` and search. Prefixes and `/regex/` are supported. Links from excluded files still count. |
-| Sort order | Recorded | Listings sort by code units (`AWS Glue Table.md` before `Amazon Athena.md`). Obsidian's search order is not reproducible from file names or times, so search results use the same order. |
-| Search syntax | Assumed | Words, `"phrases"`, `OR`, `-`, parentheses, `/regex/`, `file:`, `path:`, `content:`, `line:`, `tag:`, `[property]` and `[property:value]`. Other operators are reported as unsupported. |
+Rules backroom follows that were found by comparing with Obsidian, some of them surprising:
 
-## Checking against Obsidian
+- **Sorting.** Listings sort ignoring case and accents, with numbers compared by value (`Note 2` before `Note 10`).
+  Outgoing links (`links`) sort by code units instead, so uppercase comes first.
+- **Tags.** The vault's tags count every occurrence, merge case variants under the spelling seen first, and include
+  each parent of a nested tag, counting the occurrences below it. Excluded files do not count, but `tag` still lists
+  them. A note's own tags keep case variants apart. Tags and links inside `%%` comments count; headings there do not.
+- **Excluded files.** `userIgnoreFilters` entries are path prefixes matched ignoring case, so `archive` also excludes
+  `Archive Generation Service.md`.
+- **Links.** A link to the note itself counts as a link and a backlink. Unresolved links are named without `.md` and
+  told apart by case. `orphans` and `deadends` include attachments whether `all` is given or not.
+- **Paths.** Paths are shown in Unicode NFC, also when the file name is stored decomposed on disk.
+- **Properties.** A note's frontmatter is printed re-serialized, with lists in block style. Built-in properties
+  (`aliases`, `cssclasses`, `tags`) are listed even when unused, and types come from `types.json` or are inferred.
+- **Word count.** A word is a run of letters, hyphens and straight apostrophes, or a number such as `3.14` or
+  `1,000`. Chinese and Japanese characters count one word each. The frontmatter is skipped, comments and code are not.
+- **Search.** All operators work: `file:`, `path:`, `content:`, `line:`, `block:`, `section:`, `task:`, `task-todo:`,
+  `task-done:`, `tag:`, `match-case:`, `ignore-case:`, `[property]` and `[property:value]`. An unknown operator is an
+  error.
+- **Writes.** `create` on a taken path writes `Name 1.md`. `append` always adds a newline before the content.
+  Removing the last property removes the frontmatter. Updated wikilinks lose a `.md` extension.
 
-To pin a behavior, open a small vault in Obsidian, run the same command through `obsidian` and `backroom`, and compare.
-The test vaults in `src/*.test.ts` are a starting point. When they agree, change the evidence above to the Obsidian
-version it was checked against.
+## Deliberate differences
+
+| Behavior | Obsidian | backroom | Why |
+| --- | --- | --- | --- |
+| Changing a property | Rewrites the whole frontmatter in its own format | Changes only the property's text | ADR 2 |
+| `property:set` without `type=` | Writes the value as text, `rating: "5"` | Uses the type from `types.json`, else the current value's | Keeps number and checkbox properties intact |
+| `property:set` with `type=` | Records the type in `.obsidian/types.json` | Leaves `.obsidian/` alone | ADR 2 |
+| `delete` | Moves to the system trash | Moves to `.trash/` | A server has no system trash (ADR 2) |
+| `create ... overwrite` | Replaces the file | Needs `version=` | ADR 2 |
+| Order of search results | The order Obsidian indexed the files in | Sorted like other listings | The index order is not knowable outside the app |
+| Names that sort equal, like `Repository` and `repository` | Index order | Order found | Same |
+| Errors | Exit code 0 | Exit code 1 | Lets scripts notice errors |
+| `path=` with a decomposed name | File not found | Found | Paths are compared in NFC |
+
+`sort=count` with equal counts follows the same index order in Obsidian, which is why it is not part of the
+comparison.
