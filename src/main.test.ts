@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { serverConfig } from "./main";
+import { OAuthStore } from "./oauth-store";
 import { gitRemote } from "./testing/git-remote";
 import { tempVault, type TempVault } from "./testing/temp-vault";
 
@@ -145,5 +149,116 @@ describe("configuration", () => {
     expect(await new Response(run.stdout).text()).toBe(
       'Error: BACKROOM_PULL_INTERVAL must be a positive number of seconds, not "soon".\n',
     );
+  });
+});
+
+describe("backroom serve", () => {
+  async function waitForServer(url: string): Promise<Response> {
+    for (const deadline = Date.now() + 5000; Date.now() < deadline; await Bun.sleep(50)) {
+      try {
+        return await fetch(url);
+      } catch {}
+    }
+    throw new Error(`${url} did not answer within 5 seconds.`);
+  }
+
+  test("serves the MCP endpoint behind OAuth and stops on SIGTERM", async () => {
+    const vault = await vaultWith({ "A.md": "a" });
+    const state = await mkdtemp(join(tmpdir(), "backroom-state-"));
+    cleanup.push(() => rm(state, { recursive: true, force: true }));
+    const port = 20000 + Math.floor(Math.random() * 20000);
+    const hash = await Bun.password.hash("a long passphrase for tests", { algorithm: "argon2id" });
+    const server = Bun.spawn([process.execPath, MAIN, "serve"], {
+      env: {
+        ...process.env,
+        BACKROOM_VAULT: vault.root,
+        BACKROOM_URL: `http://localhost:${port}`,
+        BACKROOM_LISTEN: `127.0.0.1:${port}`,
+        BACKROOM_PASSPHRASE_HASH: hash,
+        BACKROOM_STATE: state,
+      },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    cleanup.push(async () => {
+      server.kill();
+      await server.exited;
+    });
+
+    const response = await waitForServer(`http://127.0.0.1:${port}/mcp`);
+    const metadata = await (await fetch(`http://127.0.0.1:${port}/.well-known/oauth-authorization-server`)).json();
+    server.kill("SIGTERM");
+
+    expect(response.status).toBe(401);
+    expect(response.headers.get("WWW-Authenticate")).toContain(`http://localhost:${port}/.well-known/`);
+    expect(metadata).toMatchObject({ issuer: `http://localhost:${port}` });
+    expect(await server.exited).toBe(0);
+    expect(await Bun.file(join(state, "oauth.sqlite")).exists()).toBe(true);
+  });
+
+  test("refuses to start without its configuration, and says what is missing", () => {
+    const hash = "$argon2id$v=19$m=65536,t=2,p=1$abc$def";
+
+    expect(serverConfig({})).toContain("Set BACKROOM_URL");
+    expect(serverConfig({ BACKROOM_URL: "http://backroom.example.com", BACKROOM_PASSPHRASE_HASH: hash })).toContain(
+      "must use https",
+    );
+    expect(
+      serverConfig({ BACKROOM_URL: "https://backroom.example.com/mcp", BACKROOM_PASSPHRASE_HASH: hash }),
+    ).toContain("without a path");
+    expect(serverConfig({ BACKROOM_URL: "https://backroom.example.com" })).toContain("BACKROOM_PASSPHRASE_HASH");
+    expect(
+      serverConfig({
+        BACKROOM_URL: "https://backroom.example.com",
+        BACKROOM_PASSPHRASE_HASH: hash,
+        BACKROOM_CLIENT_ORIGINS: "https://claude.ai, http://opencode.local",
+      }),
+    ).toContain('"http://opencode.local"');
+    expect(serverConfig({ BACKROOM_URL: "https://backroom.example.com/", BACKROOM_PASSPHRASE_HASH: hash })).toEqual({
+      url: "https://backroom.example.com",
+      passphraseHash: hash,
+      clientOrigins: ["https://claude.ai"],
+      hostname: "127.0.0.1",
+      port: 8484,
+    });
+  });
+});
+
+describe("backroom auth", () => {
+  test("auth:hash prints an argon2id hash of the passphrase on stdin, and refuses a short one", async () => {
+    const run = async (input: string) => {
+      const process = Bun.spawn([globalThis.process.execPath, MAIN, "auth:hash"], {
+        stdin: new Blob([input]),
+        stdout: "pipe",
+      });
+      return { exitCode: await process.exited, output: (await new Response(process.stdout).text()).trim() };
+    };
+
+    const hashed = await run("a long passphrase for tests\n");
+    const short = await run("short\n");
+
+    expect(hashed.exitCode).toBe(0);
+    expect(await Bun.password.verify("a long passphrase for tests", hashed.output)).toBe(true);
+    expect(short).toEqual({
+      exitCode: 1,
+      output: "Error: The passphrase needs at least 16 characters. Pass it on stdin.",
+    });
+  });
+
+  test("auth:revoke ends every sign-in in the state folder", async () => {
+    const state = await mkdtemp(join(tmpdir(), "backroom-state-"));
+    cleanup.push(() => rm(state, { recursive: true, force: true }));
+    const store = new OAuthStore(join(state, "oauth.sqlite"));
+    const token = store.issue({ kind: "access", grant: "g", clientId: "c", resource: "r" }, Date.now() + 60_000);
+    store.close();
+
+    const process = Bun.spawn([globalThis.process.execPath, MAIN, "auth:revoke"], {
+      env: { ...globalThis.process.env, BACKROOM_STATE: state },
+      stdout: "pipe",
+    });
+
+    expect(await process.exited).toBe(0);
+    expect((await new Response(process.stdout).text()).trim()).toBe("Revoked every sign-in (1 codes and tokens).");
+    expect(new OAuthStore(join(state, "oauth.sqlite")).find(token)).toBeNull();
   });
 });

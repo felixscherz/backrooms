@@ -92,8 +92,28 @@ literally, without the `\n` escapes the shell needs.
 }
 ```
 
-The streamable HTTP transport for remote clients is not implemented yet, because authentication is still an open
-question (ADR 5).
+### Remote MCP with OAuth
+
+`backroom serve` serves the same tools over streamable HTTP at `/mcp`, for the Claude apps and Claude Code on other
+devices. backroom is its own OAuth server for one person who signs in with a passphrase (ADR 8). Run it behind a
+reverse proxy that terminates TLS.
+
+```sh
+backroom auth:hash < passphrase.txt   # prints the hash for BACKROOM_PASSPHRASE_HASH; use 16 or more characters
+```
+
+| Variable | Meaning |
+| --- | --- |
+| `BACKROOM_URL` | Public origin, such as `https://backroom.example.com`. Required, https unless it is localhost |
+| `BACKROOM_PASSPHRASE_HASH` | Output of `backroom auth:hash`. Required |
+| `BACKROOM_LISTEN` | Local address to listen on, default `127.0.0.1:8484` |
+| `BACKROOM_STATE` | Folder for the sign-in database, default `$XDG_STATE_HOME/backroom` or `~/.local/state/backroom` |
+| `BACKROOM_CLIENT_ORIGINS` | Comma-separated origins whose clients may sign in, default `https://claude.ai` |
+
+In Claude, add a custom connector with the URL `BACKROOM_URL/mcp` and the default authentication settings. Claude
+opens backroom's sign-in page, which names the client asking, and you enter the passphrase. Tokens last an hour and
+are refreshed for up to 30 days of not being used. `backroom auth:revoke` ends every sign-in. Five wrong passphrases
+in a row pause sign-in for 15 minutes.
 
 ## Development
 
