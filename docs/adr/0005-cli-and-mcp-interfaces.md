@@ -28,7 +28,8 @@ The project offers two interfaces, a CLI and an MCP server, as thin layers over 
 - Commands follow the Obsidian CLI for the features backroom supports: the same command names, `key=value`
   parameters and output formats. Agents and skills written against the Obsidian CLI then need few changes. MCP tools use
   the same names, with `:` replaced by `_` (`search:context` becomes `search_context`), because MCP tool names do not
-  allow colons. Operations the Obsidian CLI has no command for get their own names.
+  allow colons. Operations the Obsidian CLI has no command for get their own names. ADR 9 replaces this rule for MCP
+  tools, which get their own names and arguments.
 - The MCP server supports the stdio transport for local clients and the streamable HTTP transport for remote clients.
   Remote access requires authentication, which ADR 8 decides.
 
