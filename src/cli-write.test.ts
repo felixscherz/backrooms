@@ -407,3 +407,28 @@ describe("file permissions", () => {
     expect((await stat(join(vault.root, "Script.md"))).mode & 0o777).toBe(0o600);
   });
 });
+
+describe("unicode file names", () => {
+  const decomposed = "Münch.md";
+  const composed = "Münch.md";
+
+  test("a name stored decomposed on disk is shown composed, like Obsidian does, and written in place", async () => {
+    const vault = await vaultWith({ [decomposed]: "# M\n", "Link.md": `[[${composed.slice(0, -3)}]]` });
+
+    expect(await vault.ok("files")).toBe(`Link.md\n${composed}`);
+    expect(await vault.ok("backlinks", `path=${decomposed}`)).toBe("Link.md");
+    await vault.ok("append", `path=${composed}`, "content=more");
+
+    const snapshot = await vault.snapshot();
+    const files = Object.keys(snapshot).filter((path) => !path.startsWith(".obsidian"));
+    expect(files.sort()).toEqual(["Link.md", decomposed]);
+    expect(snapshot[decomposed]).toBe("# M\nmore\n");
+  });
+
+  test("a rename moves the file stored under its decomposed name", async () => {
+    const vault = await vaultWith({ [decomposed]: "# M\n" });
+
+    expect(await vault.ok("rename", `path=${composed}`, "name=Renamed")).toBe(`Renamed: ${composed} -> Renamed.md`);
+    expect(Object.keys(await vault.snapshot()).filter((path) => !path.startsWith(".obsidian"))).toEqual(["Renamed.md"]);
+  });
+});

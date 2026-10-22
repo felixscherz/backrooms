@@ -25,8 +25,13 @@ export const TRASH_FOLDER = ".trash";
  * Applies a set of changes to the vault on disk as one unit: all are validated before the first write, each file
  * is replaced atomically, and if a step fails the steps already applied are rolled back.
  */
-export async function applyChanges(root: string, changes: Change[]): Promise<AppliedChange[]> {
-  for (const change of changes) validatePaths(change);
+export async function applyChanges(
+  root: string,
+  planned: Change[],
+  diskPath: (path: string) => string = (path) => path,
+): Promise<AppliedChange[]> {
+  for (const change of planned) validatePaths(change);
+  const changes = planned.map((change) => onDisk(change, diskPath));
   await checkPreconditions(root, changes);
 
   const undo: (() => Promise<void>)[] = [];
@@ -44,6 +49,19 @@ export async function applyChanges(root: string, changes: Change[]): Promise<App
     throw error;
   }
   return applied;
+}
+
+/** The change with the paths of existing files replaced by their names on disk. New paths are written as given. */
+function onDisk(change: Change, diskPath: (path: string) => string): Change {
+  switch (change.kind) {
+    case "create":
+      return change;
+    case "move":
+      return { ...change, from: diskPath(change.from) };
+    case "modify":
+    case "trash":
+      return { ...change, path: diskPath(change.path) };
+  }
 }
 
 function validatePaths(change: Change) {

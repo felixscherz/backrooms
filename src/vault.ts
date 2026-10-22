@@ -37,8 +37,11 @@ export const defaultSettings: Settings = {
   propertyTypes: {},
 };
 
-/** A file of the vault as the engine sees it. Markdown files carry their text. */
-export type Entry = VaultFile & { text: string | null };
+/**
+ * A file of the vault as the engine sees it. Markdown files carry their text. `path` is in Unicode NFC, as Obsidian
+ * shows paths, and `diskPath` is the name on disk when that is stored differently, for example decomposed on macOS.
+ */
+export type Entry = VaultFile & { text: string | null; diskPath?: string };
 
 export type ResolvedLink = { link: Link; target: string | null };
 
@@ -72,14 +75,16 @@ export class Vault {
     const walk = async (folder: string) => {
       for (const dirent of await readdir(joinFs(root, folder), { withFileTypes: true })) {
         if (dirent.name.startsWith(".")) continue;
-        const path = join(folder, dirent.name);
+        const diskPath = join(folder, dirent.name);
         if (dirent.isDirectory()) {
-          await walk(path);
+          await walk(diskPath);
         } else if (dirent.isFile()) {
-          const absolute = joinFs(root, path);
+          const absolute = joinFs(root, diskPath);
           const stats = await stat(absolute);
+          const path = diskPath.normalize("NFC");
           entries.push({
             path,
+            ...(path === diskPath ? {} : { diskPath }),
             size: stats.size,
             created: stats.birthtimeMs || stats.ctimeMs,
             modified: stats.mtimeMs,
@@ -119,7 +124,9 @@ export class Vault {
   }
 
   files(): VaultFile[] {
-    return [...this.entries.values()].map(({ text, ...file }) => file).sort((a, b) => compareNames(a.path, b.path));
+    return [...this.entries.values()]
+      .map(({ text, diskPath, ...file }) => file)
+      .sort((a, b) => compareNames(a.path, b.path));
   }
 
   folders(): string[] {
@@ -145,8 +152,13 @@ export class Vault {
   file(path: string): VaultFile {
     const entry = this.entries.get(path);
     if (!entry) throw fileNotFound(path);
-    const { text, ...file } = entry;
+    const { text, diskPath, ...file } = entry;
     return file;
+  }
+
+  /** Where a vault path is stored on disk, which differs from the path when the name is not stored in NFC. */
+  diskPath(path: string): string {
+    return this.entries.get(path)?.diskPath ?? path;
   }
 
   /** Looks a file up by path ignoring case, the way Obsidian matches link paths. */
@@ -186,6 +198,7 @@ export class Vault {
    */
   resolve(linkpath: string, sourcePath: string): string | null {
     if (linkpath === "") return this.entries.has(sourcePath) ? sourcePath : null;
+    linkpath = linkpath.normalize("NFC");
     const sourceFolder = dirname(sourcePath);
     if (linkpath.startsWith("./") || linkpath.startsWith("../")) {
       const path = normalize(join(sourceFolder, linkpath));

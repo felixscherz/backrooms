@@ -481,8 +481,9 @@ export class Engine {
   ): Promise<WriteResult> {
     return this.serialized(async () => {
       await this.git?.beforeWrite();
-      const planned = await plan(await this.vault());
-      const changes = await applyChanges(this.root, planned.changes);
+      const vault = await this.vault();
+      const planned = await plan(vault);
+      const changes = await applyChanges(this.root, planned.changes, (path) => vault.diskPath(path));
       const result: WriteResult = { ...planned, changes, warnings: [] };
       if (changes.length > 0 && this.git) result.warnings = await this.git.afterWrite(result);
       return result;
@@ -527,7 +528,7 @@ function includedNotes(vault: Vault): string[] {
 
 function resolveRef(vault: Vault, ref: FileRef): string {
   if ("path" in ref) {
-    const path = normalize(ref.path);
+    const path = normalize(ref.path.normalize("NFC"));
     if (path !== null && path !== "" && !vault.entry(path) && vault.folders().includes(path)) {
       throw new BackroomError("invalid_argument", `"${path}" is a folder, not a file.`);
     }
