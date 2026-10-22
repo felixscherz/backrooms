@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { chmod, mkdir, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { chmod, mkdir, readdir, stat } from "node:fs/promises";
+import { join, relative } from "node:path";
 import { tempVault, type TempVault } from "./testing/temp-vault";
 import { contentVersion } from "./vault";
 import { applyChanges } from "./write";
@@ -373,24 +373,6 @@ describe("rename and move", () => {
 });
 
 describe("the write path", () => {
-  test("a change that fails part way restores the files it already wrote", async () => {
-    const vault = await vaultWith({ "A.md": "a" });
-    await mkdir(join(vault.root, "Locked"));
-    await chmod(join(vault.root, "Locked"), 0o555);
-
-    try {
-      const attempt = applyChanges(vault.root, [
-        { kind: "modify", path: "A.md", baseVersion: contentVersion("a"), text: "changed" },
-        { kind: "create", path: "Locked/B.md", text: "b" },
-      ]);
-      expect(attempt).rejects.toThrow();
-      await attempt.catch(() => {});
-      expect(await vault.read("A.md")).toBe("a");
-    } finally {
-      await chmod(join(vault.root, "Locked"), 0o755);
-    }
-  });
-
   test("no file is written when any change is based on an outdated version", async () => {
     const vault = await vaultWith({ "A.md": "a", "B.md": "b" });
 
@@ -411,6 +393,70 @@ describe("the write path", () => {
     await vault.ok("rename", "path=A.md", "name=B");
 
     expect(Object.keys(await vault.snapshot()).filter((path) => !path.startsWith(".obsidian"))).toEqual(["B.md"]);
+  });
+});
+
+describe("a write that fails part way", () => {
+  const locked: (() => Promise<void>)[] = [];
+  afterEach(async () => {
+    for (const unlock of locked.splice(0)) await unlock();
+  });
+
+  /** Makes a folder read-only for the test, so renaming or writing files in it fails. */
+  async function lock(vault: TempVault, folder: string) {
+    await chmod(join(vault.root, folder), 0o555);
+    locked.push(() => chmod(join(vault.root, folder), 0o755));
+  }
+
+  async function folders(vault: TempVault): Promise<string[]> {
+    const entries = await readdir(vault.root, { recursive: true, withFileTypes: true });
+    return entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => relative(vault.root, join(entry.parentPath, entry.name)))
+      .sort();
+  }
+
+  test("a move restores the links it already updated and removes the folders it created", async () => {
+    const vault = await vaultWith({
+      "Locked/Pizza.md": "# Pizza\n",
+      "A.md": "[[Pizza]]\n",
+      "Notes/B.md": "[[Locked/Pizza|the pizza]]\n",
+    });
+    await lock(vault, "Locked");
+    const before = await vault.snapshot();
+    const foldersBefore = await folders(vault);
+
+    const result = await vault.run("move", "path=Locked/Pizza.md", "to=New/Sub/Pizza.md");
+
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toBe(
+      "Error: The write failed and was undone, so the vault is unchanged: EACCES: permission denied, rename 'Locked/Pizza.md' -> 'New/Sub/Pizza.md'",
+    );
+    expect(await vault.snapshot()).toEqual(before);
+    expect(await folders(vault)).toEqual(foldersBefore);
+  });
+
+  test("a delete leaves no trash folder behind", async () => {
+    const vault = await vaultWith({ "Locked/Pizza.md": "# Pizza\n" });
+    await lock(vault, "Locked");
+    const foldersBefore = await folders(vault);
+
+    expect((await vault.run("delete", "path=Locked/Pizza.md")).output).toStartWith(
+      "Error: The write failed and was undone",
+    );
+    expect(await folders(vault)).toEqual(foldersBefore);
+  });
+
+  test("a note whose folder cannot be written is reported, and the notes before it are restored", async () => {
+    const vault = await vaultWith({ "Pizza.md": "# Pizza\n", "A.md": "[[Pizza]]\n", "Locked/B.md": "[[Pizza]]\n" });
+    await lock(vault, "Locked");
+    const before = await vault.snapshot();
+
+    const result = await vault.run("rename", "path=Pizza.md", "name=Pizza Napoletana");
+
+    expect(result.output).toStartWith("Error: The write failed and was undone, so the vault is unchanged: EACCES");
+    expect(result.output).not.toContain(vault.root);
+    expect(await vault.snapshot()).toEqual(before);
   });
 });
 

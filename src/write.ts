@@ -34,19 +34,21 @@ export async function applyChanges(
   const changes = planned.map((change) => onDisk(change, diskPath));
   await checkPreconditions(root, changes);
 
-  const undo: (() => Promise<void>)[] = [];
+  const undo: Undo[] = [];
   const applied: AppliedChange[] = [];
   try {
     for (const change of changes) applied.push(await applyOne(root, change, undo));
   } catch (error) {
+    const notRestored: string[] = [];
     for (const step of undo.reverse()) {
       try {
-        await step();
+        await step.run();
       } catch {
-        // Keep rolling back the other steps. The original error is what the caller needs to see.
+        // Keep rolling back the other steps, and report the files this step could not restore.
+        notRestored.push(step.path);
       }
     }
-    throw error;
+    throw writeFailed(root, error, [...new Set(notRestored)]);
   }
   return applied;
 }
@@ -103,41 +105,45 @@ async function checkPreconditions(root: string, changes: Change[]) {
   }
 }
 
-async function applyOne(root: string, change: Change, undo: (() => Promise<void>)[]): Promise<AppliedChange> {
+/** A step that undoes part of an applied change, and the vault path it restores. */
+type Undo = { path: string; run: () => Promise<void> };
+
+async function applyOne(root: string, change: Change, undo: Undo[]): Promise<AppliedChange> {
   switch (change.kind) {
     case "create": {
       const created = await ensureFolder(root, dirname(change.path));
-      undo.push(() => removeFolders(root, created));
+      undo.push({ path: dirname(change.path), run: () => removeFolders(root, created) });
       await atomicWrite(root, change.path, change.text, { mustNotExist: true });
-      undo.push(() => unlink(joinFs(root, change.path)));
+      undo.push({ path: change.path, run: () => unlink(joinFs(root, change.path)) });
       return change;
     }
     case "modify": {
       const original = await readFile(joinFs(root, change.path), "utf8");
       await checkVersion(root, change.path, change.baseVersion);
       await atomicWrite(root, change.path, change.text, { mustNotExist: false });
-      undo.push(() => atomicWrite(root, change.path, original, { mustNotExist: false }));
+      undo.push({ path: change.path, run: () => atomicWrite(root, change.path, original, { mustNotExist: false }) });
       return change;
     }
     case "move": {
       await checkVersion(root, change.from, change.baseVersion);
       const created = await ensureFolder(root, dirname(change.to));
-      undo.push(() => removeFolders(root, created));
+      undo.push({ path: dirname(change.to), run: () => removeFolders(root, created) });
       const original = change.text === undefined ? null : await readFile(joinFs(root, change.from), "utf8");
       await moveFile(root, change.from, change.to);
-      undo.push(() => moveFile(root, change.to, change.from));
+      undo.push({ path: change.from, run: () => moveFile(root, change.to, change.from) });
       if (change.text !== undefined && original !== null) {
         await atomicWrite(root, change.to, change.text, { mustNotExist: false });
-        undo.push(() => atomicWrite(root, change.to, original, { mustNotExist: false }));
+        undo.push({ path: change.to, run: () => atomicWrite(root, change.to, original, { mustNotExist: false }) });
       }
       return change;
     }
     case "trash": {
       await checkVersion(root, change.path, change.baseVersion);
-      await ensureFolder(root, TRASH_FOLDER);
+      const created = await ensureFolder(root, TRASH_FOLDER);
+      undo.push({ path: TRASH_FOLDER, run: () => removeFolders(root, created) });
       const trashPath = await freeTrashPath(root, change.path);
       await rename(joinFs(root, change.path), joinFs(root, trashPath));
-      undo.push(() => rename(joinFs(root, trashPath), joinFs(root, change.path)));
+      undo.push({ path: change.path, run: () => rename(joinFs(root, trashPath), joinFs(root, change.path)) });
       return { ...change, trashPath };
     }
   }
@@ -224,4 +230,21 @@ async function exists(root: string, path: string): Promise<boolean> {
 
 function alreadyExists(path: string): BackroomError {
   return new BackroomError("already_exists", `File "${path}" already exists.`);
+}
+
+/**
+ * The error for a write that failed while it was applied. A BackroomError the write raised, such as a file that
+ * appeared in the meantime, stays as it is once the write is undone. Errors from the disk are reported with vault
+ * paths instead of the server's, and say whether the vault was left partly changed.
+ */
+function writeFailed(root: string, error: unknown, notRestored: string[]): BackroomError {
+  if (error instanceof BackroomError && notRestored.length === 0) return error;
+  const cause = (error instanceof Error ? error.message : String(error)).replaceAll(joinFs(root, "/"), "");
+  if (notRestored.length === 0) {
+    return new BackroomError("write_failed", `The write failed and was undone, so the vault is unchanged: ${cause}`);
+  }
+  return new BackroomError(
+    "write_failed",
+    `The write failed and could not be fully undone, so these paths may be left changed: ${notRestored.join(", ")}. The write failed because: ${cause}`,
+  );
 }

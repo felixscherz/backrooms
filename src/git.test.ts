@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { chmod, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runGit } from "./git";
@@ -35,6 +35,18 @@ describe("commits", () => {
     expect(await git(vault.root, "show", "--name-status", "--format=", "HEAD")).toBe(
       "M\tIndex.md\nR100\tPizza.md\tPizza Napoletana.md",
     );
+    expect(await git(vault.root, "status", "--porcelain")).toBe("");
+  });
+
+  test("a write that fails makes no commit and leaves the working tree clean", async () => {
+    const vault = await gitVault({ "Pizza.md": "# Pizza\n", "A.md": "[[Pizza]]\n", "Locked/B.md": "[[Pizza]]\n" });
+    const head = await git(vault.root, "rev-parse", "HEAD");
+    await chmod(join(vault.root, "Locked"), 0o555);
+    cleanup.unshift(() => chmod(join(vault.root, "Locked"), 0o755));
+
+    expect((await vault.run("rename", "path=Pizza.md", "name=Pizza Napoletana")).exitCode).toBe(1);
+
+    expect(await git(vault.root, "rev-parse", "HEAD")).toBe(head);
     expect(await git(vault.root, "status", "--porcelain")).toBe("");
   });
 

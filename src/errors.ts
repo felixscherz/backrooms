@@ -10,7 +10,9 @@ export type ErrorCode =
   /** The vault is in a state where backroom cannot tell how Obsidian would read it, so it refuses to write. */
   | "unsafe"
   /** Obsidian supports this, backroom does not. */
-  | "unsupported";
+  | "unsupported"
+  /** The disk refused a write. The message says whether the vault was left unchanged. */
+  | "write_failed";
 
 /** An error the caller can act on. Its message is meant to be shown to the caller as is. */
 export class BackroomError extends Error {
