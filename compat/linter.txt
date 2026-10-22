@@ -1,0 +1,22 @@
+# Writes that backroom must carry out on compat/linter-vault/ like Obsidian does with the Linter plugin enabled.
+# The recorder runs each with the Obsidian CLI, then lints the note it names with the Linter's
+# lint-file-unless-ignored command, which skips the folders and files the Linter ignores the way lint on save does.
+# backroom has to leave the same files. Timestamps from the run itself compare as <now>.
+# A leading "~ " compares frontmatter by its parsed properties: Obsidian rewrites all of the frontmatter when it
+# changes one property, backroom only the property's own text (ADR 2).
+# Record with `bun compat/record-linter.ts` while linter-vault is open in Obsidian.
+
+append path="Dated.md" content="Appended"
+prepend path="Dated.md" content="Top"
+append path="Plain.md" content="Appended"
+append path="Empty values.md" content="Appended"
+append path="Malformed.md" content="Appended"
+append path="Missing modified.md" content="Appended"
+append path="Commented.md" content="Appended"
+~ property:set path="Dated.md" name=status value=done
+append path="Ignored/Note.md" content="Appended"
+append path="Notes/My Draft.md" content="Appended"
+append path="Notes/Final.md" content="Appended"
+create path="New.md" content="# New"
+create path="Ignored/New.md" content="# New"
+create path="Notes/New draft.md" content="# New"

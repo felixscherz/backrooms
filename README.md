@@ -110,3 +110,5 @@ bun run build                   # single executable in dist/backroom
 The tests drive the CLI against temporary vaults on disk, and the git tests use real repositories with a bare remote.
 `compat/compat.test.ts` checks that backroom answers like the Obsidian CLI on [test-vault/](test-vault/), against
 answers recorded with `bun compat/record.ts` (see [docs/compatibility.md](docs/compatibility.md)).
+`compat/linter.test.ts` does the same for the Linter plugin on `compat/linter-vault/`, recorded with
+`bun compat/record-linter.ts`.

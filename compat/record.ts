@@ -5,33 +5,11 @@
  * are reset to their committed state with git, so uncommitted changes to them are lost.
  */
 import { writeFileSync } from "node:fs";
-import { basename } from "node:path";
 import { changesBetween, loadCommands, RECORDING, snapshot, VAULT, type Recording } from "./commands";
+import { git as gitIn, obsidian as obsidianIn } from "./obsidian";
 
-/** Runs the Obsidian CLI. It sometimes hangs without answering, so a call that takes too long is retried. */
-async function obsidian(args: string[], attempts = 3): Promise<string> {
-  const process = Bun.spawn(["obsidian", `vault=${basename(VAULT)}`, ...args], {
-    cwd: VAULT,
-    stdout: "pipe",
-    stderr: "pipe",
-    stdin: "ignore",
-  });
-  const timeout = setTimeout(() => process.kill("SIGKILL"), 15_000);
-  const [stdout, stderr] = await Promise.all([
-    new Response(process.stdout).text(),
-    new Response(process.stderr).text(),
-  ]);
-  clearTimeout(timeout);
-  await process.exited;
-  if (process.signalCode === null) return stdout + stderr;
-  if (attempts > 1) return obsidian(args, attempts - 1);
-  throw new Error(`obsidian ${args.join(" ")} timed out. Is a dialog open in Obsidian?`);
-}
-
-async function git(...args: string[]) {
-  const process = Bun.spawn(["git", ...args], { cwd: VAULT, stdout: "ignore", stderr: "inherit" });
-  if ((await process.exited) !== 0) throw new Error(`git ${args.join(" ")} failed`);
-}
+const obsidian = (args: string[]) => obsidianIn(VAULT, args);
+const git = (...args: string[]) => gitIn(VAULT, ...args);
 
 /**
  * Puts the notes of test-vault back to their committed state and gives Obsidian time to notice. `types.json` is

@@ -37,3 +37,13 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 test-vault/.obsidian/*
 !test-vault/.obsidian/app.json
 !test-vault/.obsidian/types.json
+
+# Obsidian state of the Linter vault: only its settings are part of the repository
+compat/linter-vault/.obsidian/*
+!compat/linter-vault/.obsidian/app.json
+!compat/linter-vault/.obsidian/community-plugins.json
+!compat/linter-vault/.obsidian/plugins/
+compat/linter-vault/.obsidian/plugins/*
+!compat/linter-vault/.obsidian/plugins/obsidian-linter/
+compat/linter-vault/.obsidian/plugins/obsidian-linter/*
+!compat/linter-vault/.obsidian/plugins/obsidian-linter/data.json

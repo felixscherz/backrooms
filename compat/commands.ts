@@ -6,6 +6,9 @@ import { parseNote } from "../src/note";
 /** The vault the commands run against, opened in Obsidian under the name of its folder. */
 export const VAULT = join(import.meta.dir, "..", "test-vault");
 export const RECORDING = join(import.meta.dir, "obsidian.json");
+/** A vault with the Linter community plugin, opened in Obsidian as `linter-vault`, and what the Linter did there. */
+export const LINTER_VAULT = join(import.meta.dir, "linter-vault");
+export const LINTER_RECORDING = join(import.meta.dir, "linter.json");
 
 /** A command from `commands.txt`. */
 export type CompatCommand = {
@@ -29,7 +32,14 @@ export type Recording = {
   writes: Record<string, { output: string; changes: FileChanges }>;
 };
 
-export function loadCommands(file: "commands.txt" | "writes.txt" = "commands.txt"): CompatCommand[] {
+/** What each write in `linter.txt` did to linter-vault once the Linter linted the note it saved. */
+export type LinterRecording = {
+  obsidian: string;
+  linter: string;
+  writes: Record<string, { output: string; changes: FileChanges }>;
+};
+
+export function loadCommands(file: "commands.txt" | "writes.txt" | "linter.txt" = "commands.txt"): CompatCommand[] {
   return readFileSync(join(import.meta.dir, file), "utf8")
     .split("\n")
     .map((line) => line.trim())
@@ -135,4 +145,19 @@ export function parsedChanges(before: Record<string, string>, ...changes: FileCh
         .filter(([path, state]) => JSON.stringify(state) !== JSON.stringify(parsed(path, before[path]))),
     ),
   );
+}
+
+/**
+ * The changes with every timestamp written within 15 minutes of `now` replaced by `<now>`, so a recording can be
+ * compared with a later run. Timestamps are read as `YYYY-MM-DD HH:mm:ss` in local time, the format linter-vault uses.
+ * Older timestamps, such as a creation date the Linter keeps, stay as they are.
+ */
+export function withRecentTimestamps(changes: FileChanges, now: Date): FileChanges {
+  const recent = (text: string) =>
+    text.replace(/\b(\d{4})-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d)\b/g, (match, ...parts: string[]) => {
+      const [year, month, day, hour, minute, second] = parts.slice(0, 6).map(Number) as number[];
+      const time = new Date(year!, month! - 1, day, hour, minute, second).getTime();
+      return Math.abs(time - now.getTime()) < 15 * 60_000 ? "<now>" : match;
+    });
+  return Object.fromEntries(Object.entries(changes).map(([path, text]) => [path, text === null ? null : recent(text)]));
 }

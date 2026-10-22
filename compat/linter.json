@@ -1,0 +1,90 @@
+{
+  "obsidian": "1.13.7 (installer 1.12.7)",
+  "linter": "1.34.2",
+  "writes": {
+    "append path=\"Dated.md\" content=\"Appended\"": {
+      "output": "Appended to: Dated.md\n",
+      "changes": {
+        "Dated.md": "---\ndate_created: 2025-01-02 03:04:05\ndate_modified: <now>\ntags:\n  - cooking\n---\n# Dated\n\nBody\n\nAppended"
+      }
+    },
+    "prepend path=\"Dated.md\" content=\"Top\"": {
+      "output": "Prepended to: Dated.md\n",
+      "changes": {
+        "Dated.md": "---\ndate_created: 2025-01-02 03:04:05\ndate_modified: <now>\ntags:\n  - cooking\n---\nTop\n# Dated\n\nBody\n"
+      }
+    },
+    "append path=\"Plain.md\" content=\"Appended\"": {
+      "output": "Appended to: Plain.md\n",
+      "changes": {
+        "Plain.md": "---\ndate_created: <now>\ndate_modified: <now>\n---\n# Plain\n\nNo frontmatter.\n\nAppended"
+      }
+    },
+    "append path=\"Empty values.md\" content=\"Appended\"": {
+      "output": "Appended to: Empty values.md\n",
+      "changes": {
+        "Empty values.md": "---\ndate_created: <now>\ndate_modified: <now>\n---\nBody\n\nAppended"
+      }
+    },
+    "append path=\"Malformed.md\" content=\"Appended\"": {
+      "output": "Appended to: Malformed.md\n",
+      "changes": {
+        "Malformed.md": "---\ndate_created: <now>\ndate_modified: <now>\n---\nBody\n\nAppended"
+      }
+    },
+    "append path=\"Missing modified.md\" content=\"Appended\"": {
+      "output": "Appended to: Missing modified.md\n",
+      "changes": {
+        "Missing modified.md": "---\ntitle: Missing modified\ndate_created: 2025-01-02 03:04:05\ndate_modified: <now>\n---\nBody\n\nAppended"
+      }
+    },
+    "append path=\"Commented.md\" content=\"Appended\"": {
+      "output": "Appended to: Commented.md\n",
+      "changes": {
+        "Commented.md": "---\ntitle:   spaced   # a comment\ndate_created: <now>\ndate_modified: <now>\n---\nBody\n\nAppended"
+      }
+    },
+    "property:set path=\"Dated.md\" name=status value=done": {
+      "output": "Set status: done\n",
+      "changes": {
+        "Dated.md": "---\ndate_created: 2025-01-02 03:04:05\ndate_modified: <now>\ntags:\n  - cooking\nstatus: done\n---\n# Dated\n\nBody\n"
+      }
+    },
+    "append path=\"Ignored/Note.md\" content=\"Appended\"": {
+      "output": "Appended to: Ignored/Note.md\n",
+      "changes": {
+        "Ignored/Note.md": "Ignored folder.\n\nAppended"
+      }
+    },
+    "append path=\"Notes/My Draft.md\" content=\"Appended\"": {
+      "output": "Appended to: Notes/My Draft.md\n",
+      "changes": {
+        "Notes/My Draft.md": "A draft.\n\nAppended"
+      }
+    },
+    "append path=\"Notes/Final.md\" content=\"Appended\"": {
+      "output": "Appended to: Notes/Final.md\n",
+      "changes": {
+        "Notes/Final.md": "---\ndate_created: <now>\ndate_modified: <now>\n---\nFinal.\n\nAppended"
+      }
+    },
+    "create path=\"New.md\" content=\"# New\"": {
+      "output": "Created: New.md\n",
+      "changes": {
+        "New.md": "---\ndate_created: <now>\ndate_modified: <now>\n---\n# New"
+      }
+    },
+    "create path=\"Ignored/New.md\" content=\"# New\"": {
+      "output": "Created: Ignored/New.md\n",
+      "changes": {
+        "Ignored/New.md": "# New"
+      }
+    },
+    "create path=\"Notes/New draft.md\" content=\"# New\"": {
+      "output": "Created: Notes/New draft.md\n",
+      "changes": {
+        "Notes/New draft.md": "# New"
+      }
+    }
+  }
+}

@@ -37,8 +37,25 @@ command.
 
 ## Plugins
 
-The Linter's `yaml-timestamp` rule (ADR 7) follows the Linter 1.32 source with the file system as the source of truth.
-It is covered by tests of backroom's own, not yet by a recording of the Linter on test-vault.
+The Linter's `yaml-timestamp` rule (ADR 7) follows the Linter source, including which notes it lints: only when the
+Linter lints on save, on leaving a note or as a note changes, and never in the folders and files it ignores.
+
+It is checked against the real Linter on a second vault, [compat/linter-vault/](../compat/linter-vault/), opened in
+Obsidian as `linter-vault`. Its Linter settings are those of the personal vault, plus a folder and a file pattern to
+ignore, and only `yaml-timestamp` is enabled. Only the settings are part of the repository; the recorder installs the
+plugin itself.
+
+- [compat/linter.txt](../compat/linter.txt) lists writes on notes with valid, missing, empty and malformed timestamps,
+  without frontmatter, and in ignored places.
+- `bun compat/record-linter.ts` runs each write through the Obsidian CLI, then opens the note and runs the Linter's
+  `lint-file-unless-ignored` command and saves it. Saving through the CLI does not trigger lint on save, but this
+  command lints with the same check of ignored folders and files. Before each write it checks the notes out afresh,
+  so their file system creation date is the time of the run. Timestamps from the run are stored as `<now>`, older
+  ones as they are, in [compat/linter.json](../compat/linter.json).
+- [compat/linter.test.ts](../compat/linter.test.ts) replays the writes through backroom on a fresh copy of the vault
+  and expects the same files, with its own recent timestamps as `<now>`.
+
+The recording was made with the Linter 1.34.2.
 
 ## How Obsidian behaves
 
