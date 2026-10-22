@@ -1,0 +1,2 @@
+# The test vault is compared byte for byte with what Obsidian reads, so git must not touch line endings.
+test-vault/** -text

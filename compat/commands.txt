@@ -1,0 +1,112 @@
+# Commands that backroom must answer like the Obsidian CLI on test-vault/.
+# One command per line, with shell quoting. A leading "~ " means the order of the output lines (or of a json array)
+# does not matter: Obsidian returns search results in the order it indexed the files, which backroom cannot know.
+# Record Obsidian's answers with `bun compat/record.ts` while test-vault is open in Obsidian.
+
+read path="Alpha.md"
+read path="Nope.md"
+read file=Alpha
+read file=Gamma
+read file="Note With Space"
+read file=First
+file path="Nope.md"
+
+outline path="Alpha.md" format=json
+outline path="Alpha.md" format=md
+outline path="Alpha.md" total
+outline path="outline/Nested headings.md" format=json
+outline path="Beta.md" format=json
+
+properties path="Alpha.md" format=json
+properties path="properties/Value kinds.md" format=json
+properties path="Windows Note.md"
+properties name=rating
+properties name=cssclasses
+property:read path="Alpha.md" name=tags
+property:read path="Alpha.md" name=related
+property:read path="Alpha.md" name=rating
+property:read path="Alpha.md" name=date_created
+property:read path="Alpha.md" name=done
+property:read path="properties/Value kinds.md" name=multi
+property:read path="properties/Value kinds.md" name=d
+property:read path="properties/Value kinds.md" name=f
+
+tags path="Broken Frontmatter.md"
+
+aliases
+aliases verbose
+aliases total
+aliases path="Alpha.md"
+
+links path="Alpha.md"
+links path="Alpha.md" total
+links path="folder/sub/Delta.md"
+links path="Beta.md"
+backlinks path="Alpha.md"
+backlinks path="Alpha.md" counts
+backlinks path="Alpha.md" total
+backlinks path="Alpha.md" format=json
+backlinks path="Alpha.md" format=json counts
+backlinks path="Alpha.md" format=tsv counts
+backlinks path="Beta.md"
+backlinks path="Gamma.md"
+backlinks path="folder/Gamma.md"
+backlinks path="Orphan Note.md"
+backlinks path="assets/diagram.png"
+backlinks file=Gamma
+
+files total
+files ext=png
+files folder=folder
+files folder=projects
+
+~ search query=pizza
+~ search query="pizza dough"
+~ search query="pizza OR idea"
+~ search query="pizza -dough"
+~ search query="tag:#idea"
+~ search query="tag:project"
+~ search query="#idea"
+~ search query="path:projects"
+~ search query="file:Gamma"
+~ search query="content:pizza"
+~ search query="line:(pizza recipe)"
+~ search query="line:(pizza continues)"
+~ search query="[rating:4]"
+~ search query="[status]"
+~ search query="[done:true]"
+~ search query="/piz+a/"
+~ search query="\"para one\""
+~ search query="Para -/one/"
+~ search query=pizza case
+~ search query=Pizza case
+~ search query=pizza path=folder
+~ search query=pizza format=json
+search query=pizza total
+search query=nothingmatches
+~ search:context query=pizza
+~ search:context query=pizza format=json
+~ search:context query="file:Gamma"
+search:context query=nothingmatches
+
+wordcount path="Alpha.md" characters
+wordcount path="Broken Frontmatter.md"
+wordcount path="Windows Note.md"
+wordcount path="words/Accented letters.md"
+wordcount path="words/Broken frontmatter is skipped.md"
+wordcount path="words/Comments count.md"
+wordcount path="words/Curly apostrophe alone.md"
+wordcount path="words/Cyrillic and Greek.md"
+wordcount path="words/Emoji.md"
+wordcount path="words/Frontmatter is skipped.md"
+wordcount path="words/Hangul jamo.md"
+wordcount path="words/Inline formatting.md"
+wordcount path="words/Ligatures and symbols.md"
+wordcount path="words/Only frontmatter with newline.md"
+wordcount path="words/Only frontmatter.md"
+wordcount path="words/Plain words.md"
+
+vault info=name
+vault info=files
+vault info=folders
+vault info=size

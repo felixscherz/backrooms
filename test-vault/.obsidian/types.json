@@ -1,0 +1,1 @@
+{"types": {"rating": "number", "date_created": "datetime", "done": "checkbox", "related": "multitext", "aliases": "aliases", "tags": "tags"}}

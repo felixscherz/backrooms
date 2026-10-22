@@ -1,0 +1,1 @@
+https://example.com/path?x=1 a@b.com

@@ -1,0 +1,1 @@
+Gamma duplicate name in root

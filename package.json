@@ -9,7 +9,7 @@
   "scripts": {
     "typecheck": "bun check",
     "build": "bun build --compile src/main.ts --outfile dist/backroom",
-    "format": "bunx prettier@3.3.3 --write \"src/**/*.ts\""
+    "format": "bunx prettier@3.3.3 --write \"src/**/*.ts\" \"compat/**/*.ts\""
   },
   "devDependencies": {
     "@types/bun": "latest"
