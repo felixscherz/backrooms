@@ -33,9 +33,12 @@ async function git(...args: string[]) {
   if ((await process.exited) !== 0) throw new Error(`git ${args.join(" ")} failed`);
 }
 
-/** Puts the notes of test-vault back to their committed state and gives Obsidian time to notice. */
+/**
+ * Puts the notes of test-vault back to their committed state and gives Obsidian time to notice. `types.json` is
+ * reset too, since `property:set ... type=` records the type there.
+ */
 async function resetVault() {
-  await git("checkout", "--", ".", ":(exclude).obsidian");
+  await git("checkout", "--", ".", ":(exclude).obsidian", ".obsidian/types.json");
   await git("clean", "-fdq", "--", ".", ":(exclude).obsidian");
   await Bun.sleep(1500);
 }

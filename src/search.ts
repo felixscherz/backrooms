@@ -7,11 +7,13 @@ import { basename } from "./paths";
  * `-` negates, `"..."` matches a phrase and `/.../` a regular expression. The operators `file:`, `path:`,
  * `content:`, `tag:` and `[property]` / `[property:value]` narrow what a term is matched against, `line:`,
  * `block:`, `section:`, `task:`, `task-todo:` and `task-done:` require their terms to match within one part of
- * the note, and `match-case:` and `ignore-case:` set the case sensitivity of their terms.
+ * the note, and `match-case:` and `ignore-case:` set the case sensitivity of their terms. In a property's value,
+ * `>` and `<` compare the value with the text after them.
  */
 export type Query =
   | { kind: "text"; text: string }
   | { kind: "regex"; pattern: RegExp }
+  | { kind: "compare"; operator: ">" | "<"; text: string }
   | { kind: "and"; parts: Query[] }
   | { kind: "or"; parts: Query[] }
   | { kind: "not"; part: Query }
@@ -83,15 +85,68 @@ function evaluate(query: Query, scope: Scope, options: SearchOptions): boolean {
         return lower === wanted || lower.startsWith(`${wanted}/`);
       });
     }
+    case "compare":
+      return false;
     case "property": {
-      const entry = Object.entries(scope.file.note.properties).find(
-        ([name]) => name.toLowerCase() === query.name.toLowerCase(),
+      const wanted = query.name.toLowerCase();
+      const properties = Object.entries(scope.file.note.properties).filter(([name]) =>
+        name.toLowerCase().includes(wanted),
       );
-      if (!entry) return false;
-      if (!query.value) return true;
-      return evaluate(query.value, { ...scope, texts: propertyTexts(entry[1]) }, options);
+      if (!query.value) return properties.length > 0;
+      const values = properties.flatMap(([, value]) => valuesOf(value));
+      return values.some((value) => matchesValue(query.value!, value, options));
     }
   }
+}
+
+/** The values of a property one by one: each item of a list, or the value itself. */
+function valuesOf(value: JsonValue): JsonValue[] {
+  return Array.isArray(value) ? value.flatMap(valuesOf) : [value];
+}
+
+/**
+ * Whether one property value matches the query in a property's brackets. Unlike in the rest of a query, a
+ * negation only narrows what the other terms match, so `[label:-apple]` alone matches nothing, as in Obsidian.
+ */
+function matchesValue(query: Query, value: JsonValue, options: SearchOptions): boolean {
+  switch (query.kind) {
+    case "text":
+    case "regex":
+      return value !== null && termMatches(query, valueText(value), options);
+    case "compare":
+      return compares(query, value);
+    case "and": {
+      const positive = query.parts.filter((part) => part.kind !== "not");
+      const negated = query.parts.flatMap((part) => (part.kind === "not" ? [part.part] : []));
+      return (
+        positive.length > 0 &&
+        positive.every((part) => matchesValue(part, value, options)) &&
+        !negated.some((part) => matchesValue(part, value, options))
+      );
+    }
+    case "or":
+      return query.parts.some((part) => matchesValue(part, value, options));
+    case "case":
+      return matchesValue(query.part, value, { caseSensitive: query.caseSensitive });
+    default:
+      return false;
+  }
+}
+
+function valueText(value: JsonValue): string {
+  return typeof value === "object" && value !== null ? JSON.stringify(value) : String(value);
+}
+
+/**
+ * Compares a value with JavaScript's `>` and `<`, as Obsidian does: numbers by value when the text is a number,
+ * everything else as text by code units. So `2026-10-21 09:15:00` is after `2026-10-21`, and `10` after `9` only
+ * when the property holds a number. A comparison without text matches every value, missing ones included.
+ */
+function compares(query: Query & { kind: "compare" }, value: JsonValue): boolean {
+  if (query.text === "") return true;
+  if (value === null) return false;
+  const left = (typeof value === "object" ? String(value) : value) as string;
+  return query.operator === ">" ? left > query.text : left < query.text;
 }
 
 function fieldText(field: TextField, file: SearchableFile): string {
@@ -103,12 +158,6 @@ function fieldText(field: TextField, file: SearchableFile): string {
     case "content":
       return file.text;
   }
-}
-
-function propertyTexts(value: JsonValue): string[] {
-  if (Array.isArray(value)) return value.flatMap(propertyTexts);
-  if (value === null) return [];
-  return [typeof value === "object" ? JSON.stringify(value) : String(value)];
 }
 
 function termMatches(term: Query & { kind: "text" | "regex" }, text: string, options: SearchOptions): boolean {
@@ -224,12 +273,24 @@ function tasks(lines: string[], note: Note): { status: string; text: string }[] 
   });
 }
 
+/** The text up to the first colon outside quotes, which ends the value of a property in Obsidian. */
+function untilColon(text: string): string {
+  let quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '"') quoted = !quoted;
+    else if (text[i] === ":" && !quoted) return text.slice(0, i);
+  }
+  return text;
+}
+
 class Parser {
   private position = 0;
 
   constructor(
     private readonly input: string,
     private options: SearchOptions,
+    /** Whether this parses the value in a property's brackets, where `>` and `<` compare. */
+    private readonly inProperty = false,
   ) {}
 
   parseAll(): Query | null {
@@ -280,6 +341,7 @@ class Parser {
       if (regex) return regex;
     }
     if (char === "[") return this.parseProperty();
+    if (this.inProperty && (char === ">" || char === "<")) return this.parseComparison(char);
 
     const operator = /^([a-z-]+):/.exec(this.input.slice(this.position));
     if (operator) {
@@ -338,9 +400,25 @@ class Parser {
     this.position = close + 1;
     const colon = inner.indexOf(":");
     if (colon === -1) return { kind: "property", name: inner.trim(), value: null };
-    const valueText = inner.slice(colon + 1).trim();
-    const value = valueText === "" ? null : new Parser(valueText, this.options).parseAll();
+    const valueText = untilColon(inner.slice(colon + 1)).trim();
+    if (valueText.includes("[")) {
+      throw new BackroomError("invalid_argument", "Property cannot be nested within a property.");
+    }
+    const value = valueText === "" ? null : new Parser(valueText, this.options, true).parseAll();
     return { kind: "property", name: inner.slice(0, colon).trim(), value };
+  }
+
+  /** `>` or `<` and the text after it. Without text, the comparison matches every value. */
+  private parseComparison(operator: ">" | "<"): Query {
+    this.position++;
+    const char = this.peek();
+    if (char === "-" || char === "/" || char === "(") {
+      const name = operator === ">" ? "greaterthan" : "lessthan";
+      const operand = char === "-" ? "a negation" : char === "/" ? "a regular expression" : "a group";
+      throw new BackroomError("invalid_argument", `Invalid search query: ${name} cannot be applied to ${operand}.`);
+    }
+    if (char === '"') return { kind: "compare", operator, text: this.parseQuoted() };
+    return { kind: "compare", operator, text: this.parseWord() };
   }
 
   private parseQuoted(): string {

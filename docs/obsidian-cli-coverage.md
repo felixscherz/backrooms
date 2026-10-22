@@ -55,7 +55,7 @@ so backroom has to offer them.
 
 The example requests in [vision.md](vision.md) need some things the skill does not use yet.
 
-- "What notes did I create yesterday?" needs a query over `date_created` (or file creation time), such as a `files`
-  listing with a property filter.
+- "What notes did I create yesterday?" is a search that compares `date_created`, which the Linter plugin writes, the
+  way Obsidian's search does: `search query="[date_created:>2026-10-21] [date_created:<2026-10-22]"`.
 - "Add a new entry for today to my October note" needs to find the monthly note and append to a section of it. An
   append operation (the Obsidian CLI has `append`) or the edit operation above covers this.

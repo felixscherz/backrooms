@@ -56,6 +56,13 @@ Rules backroom follows that were found by comparing with Obsidian, some of them 
 - **Search.** All operators work: `file:`, `path:`, `content:`, `line:`, `block:`, `section:`, `task:`, `task-todo:`,
   `task-done:`, `tag:`, `match-case:`, `ignore-case:`, `[property]` and `[property:value]`. An unknown operator is an
   error.
+- **Property search.** `[name]` matches every property whose name contains `name`, ignoring case, so `[date]` finds
+  `date_created` and `date_modified`. The value ends at the next colon outside quotes and has to match one value on
+  its own, one list item at a time. A negation in it only narrows the other terms: `[label:-apple]` alone matches
+  nothing. `>` and `<` compare with JavaScript's rules: numbers by value when the property holds a number, everything
+  else as text by code units, whatever type `types.json` gives the property. So `[date_created:>2026-10-21]` finds
+  notes created on or after October 21 when timestamps are written like `2026-10-21 09:15:00`. There is no `>=`, a
+  space ends the compared text unless it is quoted, and `>` or `<` without text matches every value.
 - **Writes.** `create` on a taken path writes `Name 1.md`. `append` always adds a newline before the content.
   Removing the last property removes the frontmatter. Updated wikilinks lose a `.md` extension.
 
@@ -71,6 +78,7 @@ Rules backroom follows that were found by comparing with Obsidian, some of them 
 | Order of search results | The order Obsidian indexed the files in | Sorted like other listings | The index order is not knowable outside the app |
 | Names that sort equal, like `Repository` and `repository` | Index order | Order found | Same |
 | Errors | Exit code 0 | Exit code 1 | Lets scripts notice errors |
+| `>` or `<` before a negation, regex or group | Names its internal matcher, `matcher Excluding:` | Names the kind of term | The matcher names are internal to Obsidian |
 | `path=` with a decomposed name | File not found | Found | Paths are compared in NFC |
 
 `sort=count` with equal counts follows the same index order in Obsidian, which is why it is not part of the

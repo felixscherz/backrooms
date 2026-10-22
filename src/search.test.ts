@@ -81,6 +81,71 @@ describe("search syntax", () => {
   });
 });
 
+describe("property values", () => {
+  const notes = [
+    {
+      path: "Yesterday.md",
+      text: "---\ndate_created: 2026-10-21 09:15:00\nlabel: banana\n---\n",
+    },
+    {
+      path: "Today.md",
+      text: "---\ndate_created: 2026-10-22 08:00:00\ncount: 10\ncode: '10'\nlist: [1, 20, 3]\nempty:\n---\n",
+    },
+  ].map((file) => ({ ...file, note: parseNote(file.text) }));
+  const search = (query: string) => {
+    const options = { caseSensitive: false };
+    const parsed = parseQuery(query, options);
+    return notes.filter((file) => matchFile(parsed, file, options)).map((file) => file.path);
+  };
+
+  test("> and < compare values as text, so timestamps compare by date and time", () => {
+    expect(search("[date_created:>2026-10-21]")).toEqual(["Yesterday.md", "Today.md"]);
+    expect(search("[date_created:>2026-10-21 <2026-10-22]")).toEqual(["Yesterday.md"]);
+    expect(search('[date_created:>"2026-10-21 09:00"]')).toEqual(["Yesterday.md", "Today.md"]);
+  });
+
+  test("> and < compare numbers by value, but a quoted number stays text", () => {
+    expect(search("[count:>9]")).toEqual(["Today.md"]);
+    expect(search("[code:>9]")).toEqual([]);
+  });
+
+  test("> or < without a value matches every value", () => {
+    expect(search("[empty:>]")).toEqual(["Today.md"]);
+  });
+
+  test("> and < cannot be applied to a negation, a regular expression or a group", () => {
+    expect(() => search("[count:>-4]")).toThrow("cannot be applied");
+    expect(() => search("[count:>/1/]")).toThrow("cannot be applied");
+    expect(() => search("[count:>(1)]")).toThrow("cannot be applied");
+  });
+
+  test("the whole value query has to match one value of a list", () => {
+    expect(search("[list:>15 -3]")).toEqual(["Today.md"]);
+    expect(search("[list:1 20]")).toEqual([]);
+  });
+
+  test("a negation narrows the values the other terms match, but matches nothing alone", () => {
+    expect(search("[label:-apple]")).toEqual([]);
+    expect(search("[label:-apple OR zzz]")).toEqual([]);
+    expect(search("[label:-apple >a]")).toEqual(["Yesterday.md"]);
+  });
+
+  test("a property name matches every property whose name contains it", () => {
+    expect(search("[abe:banana]")).toEqual(["Yesterday.md"]);
+    expect(search("[DATE]")).toEqual(["Yesterday.md", "Today.md"]);
+  });
+
+  test("the value ends at the next colon outside quotes", () => {
+    expect(search("[label:banana:xyz]")).toEqual(["Yesterday.md"]);
+    expect(search("[label:xyz:banana]")).toEqual([]);
+    expect(search('[date_created:"09:15"]')).toEqual(["Yesterday.md"]);
+  });
+
+  test("a property in a property's value is an error in the Obsidian CLI's wording", () => {
+    expect(() => search("[label:<[[x]")).toThrow("Property cannot be nested within a property.");
+  });
+});
+
 describe("operators for parts of a note", () => {
   const note = {
     path: "Note.md",
