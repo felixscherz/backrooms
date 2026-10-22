@@ -48,8 +48,8 @@ so backroom has to offer them.
 ## Not covered
 
 - **Linting with `open` and `command id=obsidian-linter:lint-file`.** This runs the Linter community plugin inside the
-  app. Community plugins are a non-goal for now, so backroom does not support it. The skill has to skip linting when it
-  talks to backroom.
+  app. backroom does not offer the command, but applies the Linter rules it reimplements to every note it saves (ADR 7).
+  The skill has to skip linting when it talks to backroom.
 
 ## Needed for the example requests
 

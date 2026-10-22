@@ -46,6 +46,20 @@ multi-file changes such as a rename roll back if they fail part way, deleted not
 touches `.obsidian/` or other hidden folders. A rename or move that would make any link point at a different file is
 rejected.
 
+### Plugins
+
+backroom reimplements some features of community plugins and applies them when the vault enables the plugin, with the
+plugin's own settings from `.obsidian/plugins/<id>/data.json` (ADR 7). A note is linted when a command creates or
+changes it, not when it is only renamed, moved or deleted.
+
+| Plugin | What backroom does |
+| --- | --- |
+| Linter (`obsidian-linter`) | The `yaml-timestamp` rule: records when a note was created and last modified in its frontmatter |
+
+Timestamps are written in the local time of the process, so set `TZ` on a server. A note without a creation date gets
+the date git first saw it, or the file system's date outside git. When the Linter's settings ask for something backroom
+cannot do the same way, such as a date format with month names, writes fail with an error.
+
 ### Git
 
 | `BACKROOM_GIT` | Behavior |

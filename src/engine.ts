@@ -1,3 +1,4 @@
+import { systemClock, type Clock } from "./clock";
 import { BackroomError, fileNotFound } from "./errors";
 import {
   BUILT_IN_PROPERTIES,
@@ -11,6 +12,7 @@ import {
 } from "./frontmatter";
 import { planMove } from "./move";
 import { parseNote, type JsonValue, type Note, type Properties } from "./note";
+import { loadPlugins } from "./plugins";
 import {
   basename,
   compareCodeUnits,
@@ -50,7 +52,13 @@ export type WriteHooks = {
   afterWrite(result: WriteResult): Promise<string[]>;
 };
 
-export type EngineOptions = { git?: Git };
+export type EngineOptions = { git?: Git; clock?: Clock };
+
+/**
+ * What a write plans: the changes, and the note it saves when the command creates or changes one, which the
+ * vault's plugins see (ADR 7). Notes changed as a side effect, such as links a rename updates, are not saved.
+ */
+type Plan = { operation: string; summary: string; changes: Change[]; saved?: string };
 
 /**
  * The vault engine. Every operation of the CLI and the MCP server exists here once. Reads load a fresh picture of
@@ -60,12 +68,14 @@ export class Engine {
   private queue: Promise<unknown> = Promise.resolve();
 
   readonly git: Git | null;
+  private readonly clock: Clock;
 
   constructor(
     readonly root: string,
     options: EngineOptions = {},
   ) {
     this.git = options.git ?? null;
+    this.clock = options.clock ?? systemClock;
   }
 
   async vault(): Promise<Vault> {
@@ -320,6 +330,7 @@ export class Engine {
           operation: "create",
           summary: `Created: ${free}`,
           changes: [{ kind: "create", path: free, text: options.content }],
+          saved: free,
         };
       }
       if (existing) {
@@ -334,12 +345,14 @@ export class Engine {
           operation: "create",
           summary: `Overwrote: ${existing.path}`,
           changes: [{ kind: "modify", path: existing.path, baseVersion: options.version, text: options.content }],
+          saved: existing.path,
         };
       }
       return {
         operation: "create",
         summary: `Created: ${path}`,
         changes: [{ kind: "create", path, text: options.content }],
+        saved: path,
       };
     });
   }
@@ -487,7 +500,7 @@ export class Engine {
       checkFrontmatterStaysReadable(vault.note(path), text, path);
       const changes: Change[] =
         text === vault.text(path) ? [] : [{ kind: "modify", path, baseVersion: vault.version(path), text }];
-      return { operation, summary, changes };
+      return { operation, summary, changes, saved: path };
     });
   }
 
@@ -496,18 +509,40 @@ export class Engine {
     await this.serialized(async () => this.git?.beforeWrite());
   }
 
-  private async write(
-    plan: (vault: Vault) => Promise<{ operation: string; summary: string; changes: Change[] }>,
-  ): Promise<WriteResult> {
+  private async write(plan: (vault: Vault) => Promise<Plan>): Promise<WriteResult> {
     return this.serialized(async () => {
       await this.git?.beforeWrite();
       const vault = await this.vault();
-      const planned = await plan(vault);
-      const changes = await applyChanges(this.root, planned.changes, (path) => vault.diskPath(path));
+      const { saved, ...planned } = await plan(vault);
+      const toApply = saved === undefined ? planned.changes : await this.save(vault, planned.changes, saved);
+      const changes = await applyChanges(this.root, toApply, (path) => vault.diskPath(path));
       const result: WriteResult = { ...planned, changes, warnings: [] };
       if (changes.length > 0 && this.git) result.warnings = await this.git.afterWrite(result);
       return result;
     });
+  }
+
+  /** Lets the vault's plugins change the note a write saves, the way they would when it is saved in Obsidian. */
+  private async save(vault: Vault, changes: Change[], path: string): Promise<Change[]> {
+    const plugins = await loadPlugins(this.root, vault.settings.enabledPlugins);
+    if (plugins.length === 0) return changes;
+    return Promise.all(
+      changes.map(async (change) => {
+        if ((change.kind !== "create" && change.kind !== "modify") || change.path !== path) return change;
+        const before = change.kind === "modify" ? vault.text(path) : null;
+        const note = { path, before, text: change.text, created: () => this.created(vault, path, before) };
+        for (const plugin of plugins) note.text = await plugin.onSave(note, this.clock);
+        if (before !== null) checkFrontmatterStaysReadable(vault.note(path), note.text, path);
+        return { ...change, text: note.text };
+      }),
+    );
+  }
+
+  /** When a note was created: now when it is new, else when git first saw it, else what the file system says. */
+  private async created(vault: Vault, path: string, before: string | null): Promise<Date> {
+    if (before === null) return this.clock.now();
+    const committed = await this.git?.firstCommitted(vault.diskPath(path));
+    return committed ?? new Date(vault.file(path).created);
   }
 
   /** Runs one write or pull at a time, so two of them from this process never race each other. */

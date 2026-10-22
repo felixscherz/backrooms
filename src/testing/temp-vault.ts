@@ -2,6 +2,7 @@ import { mkdtemp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { parseArguments, runCli, type CliResult } from "../cli";
+import type { Clock } from "../clock";
 import { Engine } from "../engine";
 import { Git, runGit, type GitMode } from "../git";
 
@@ -23,6 +24,7 @@ export type TempVault = {
 export type TempVaultOptions = {
   /** Makes the vault a git repository with one commit of the files, and gives the engine this git mode. */
   git?: GitMode;
+  clock?: Clock;
 };
 
 export async function tempVault(
@@ -50,7 +52,7 @@ export async function tempVault(
     }
     git = new Git(root, options.git);
   }
-  const engine = new Engine(root, { git });
+  const engine = new Engine(root, { git, clock: options.clock });
   const run = (...argv: string[]) => runCli(engine, parseArguments(argv));
   return {
     root,

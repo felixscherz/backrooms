@@ -35,6 +35,11 @@ Commands that need the app (`open`, `command`, `search:open`, `tab:open`, `rando
 Everything else the Obsidian CLI offers, such as bookmarks, bases, tasks, plugins or sync history, reports an unknown
 command.
 
+## Plugins
+
+The Linter's `yaml-timestamp` rule (ADR 7) follows the Linter 1.32 source with the file system as the source of truth.
+It is covered by tests of backroom's own, not yet by a recording of the Linter on test-vault.
+
 ## How Obsidian behaves
 
 Rules backroom follows that were found by comparing with Obsidian, some of them surprising:
@@ -78,6 +83,7 @@ Rules backroom follows that were found by comparing with Obsidian, some of them 
 | Order of search results | The order Obsidian indexed the files in | Sorted like other listings | The index order is not knowable outside the app |
 | Names that sort equal, like `Repository` and `repository` | Index order | Order found | Same |
 | Errors | Exit code 0 | Exit code 1 | Lets scripts notice errors |
+| Creation date of an existing note without a valid `date_created` | The file system's creation date | The date git first saw the note, else the file system's | A clone's files are all created when it is cloned |
 | `>` or `<` before a negation, regex or group | Names its internal matcher, `matcher Excluding:` | Names the kind of term | The matcher names are internal to Obsidian |
 | `path=` with a decomposed name | File not found | Found | Paths are compared in NFC |
 

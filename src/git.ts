@@ -120,6 +120,13 @@ export class Git {
     return changes;
   }
 
+  /** When the file was first committed, following renames, or null when git has no history of it. */
+  async firstCommitted(path: string): Promise<Date | null> {
+    const log = await this.run(this.root, ["log", "--follow", "--diff-filter=A", "--format=%aI", "--", path]);
+    const dates = log.stdout.split("\n").filter((line) => line !== "");
+    return log.exitCode === 0 && dates.length > 0 ? new Date(dates.at(-1)!) : null;
+  }
+
   private async fileAt(commit: string, path: string): Promise<string> {
     return this.check(["show", `${commit}:${path}`]);
   }

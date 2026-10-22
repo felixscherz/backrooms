@@ -26,6 +26,8 @@ export type Settings = {
   userIgnoreFilters: string[];
   /** Property types from `.obsidian/types.json`. */
   propertyTypes: Record<string, PropertyType>;
+  /** Ids of the community plugins enabled in `.obsidian/community-plugins.json`. */
+  enabledPlugins: string[];
 };
 
 export const defaultSettings: Settings = {
@@ -35,6 +37,7 @@ export const defaultSettings: Settings = {
   newFileFolderPath: "",
   userIgnoreFilters: [],
   propertyTypes: {},
+  enabledPlugins: [],
 };
 
 /**
@@ -284,6 +287,7 @@ export function contentVersion(text: string): string {
 async function loadSettings(root: string): Promise<Settings> {
   const app = await readJson(joinFs(root, ".obsidian", "app.json"));
   const types = await readJson(joinFs(root, ".obsidian", "types.json"));
+  const plugins = await readJsonValue(joinFs(root, ".obsidian", "community-plugins.json"));
   const settings: Settings = { ...defaultSettings };
   if (app) {
     if (["shortest", "relative", "absolute"].includes(app.newLinkFormat as string)) {
@@ -306,13 +310,18 @@ async function loadSettings(root: string): Promise<Settings> {
       Object.entries(typeMap).filter((pair): pair is [string, PropertyType] => typeof pair[1] === "string"),
     );
   }
+  if (Array.isArray(plugins)) settings.enabledPlugins = plugins.filter((id): id is string => typeof id === "string");
   return settings;
 }
 
 async function readJson(path: string): Promise<Record<string, unknown> | null> {
+  const value = await readJsonValue(path);
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+async function readJsonValue(path: string): Promise<unknown> {
   try {
-    const value: unknown = JSON.parse(await readFile(path, "utf8"));
-    return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+    return JSON.parse(await readFile(path, "utf8"));
   } catch {
     return null;
   }

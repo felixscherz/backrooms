@@ -45,15 +45,16 @@ open the vault in Obsidian afterwards.
 - **Runs headless on a small VM** as a single binary (ADR 3, ADR 4).
 - **Skills carry over.** Operations line up with the Obsidian CLI commands my existing skills use, so a skill needs
   small changes, not a rewrite, to work against backroom. The `second-brain` skill needs a remote mode: no local vault
-  paths, no edits or `rg` searches on the files directly, and no linting.
+  paths, no edits or `rg` searches on the files directly, and no linting, since backroom applies the Linter rules it
+  supports to every note it saves.
 - **Remote access from my phone** through MCP over HTTP with authentication (ADR 5).
 
 ## Non-goals
 
 - **Replacing the Obsidian app.** backroom has no UI. I keep using Obsidian on my devices for the same vault.
-- **Community plugins.** They are out of scope for now. The choice of TypeScript keeps the option open (ADR 4). The
-  plugin I miss first is Linter, which the skill runs after every edit. Notes written through backroom get linted the
-  next time I edit them in Obsidian, or not at all.
+- **Running community plugins.** Obsidian's plugins do not run in backroom. The choice of TypeScript keeps the option
+  open (ADR 4). Instead, backroom reimplements the features of plugins it needs as its own plugins (ADR 7), starting
+  with the Linter's timestamps, which the skill relies on.
 - **Its own sync protocol.** backroom syncs through git and nothing else. It does not talk to Obsidian Sync.
 - **Multiple users.** backroom serves one person's vault. It does not manage accounts or permissions per user.
 - **Full Obsidian CLI parity.** backroom implements the commands agents need and reports everything else as
