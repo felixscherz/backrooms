@@ -1,4 +1,7 @@
 {
+  "alwaysUpdateLinks": true,
+  "trashOption": "local",
+  "promptDelete": false,
   "newLinkFormat": "shortest",
   "useMarkdownLinks": false,
   "userIgnoreFilters": [

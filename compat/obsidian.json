@@ -227,5 +227,182 @@
     "vault info=files": "60\n",
     "vault info=folders": "13\n",
     "vault info=size": "3390\n"
+  },
+  "writes": {
+    "create path=\"New.md\" content=\"# New\\n\\nText\"": {
+      "output": "Created: New.md\n",
+      "changes": {
+        "New.md": "# New\n\nText"
+      }
+    },
+    "create name=Plain": {
+      "output": "Created: Plain.md\n",
+      "changes": {
+        "Plain.md": ""
+      }
+    },
+    "create path=\"folder/Deep/New.md\" content=x": {
+      "output": "Created: folder/Deep/New.md\n",
+      "changes": {
+        "folder/Deep/New.md": "x"
+      }
+    },
+    "append path=\"Alpha.md\" content=\"Inline\" inline": {
+      "output": "Appended to: Alpha.md\n",
+      "changes": {
+        "Alpha.md": "---\ndate_created: 2026-10-20 14:05:00\ntags:\n  - inbox\n  - project/alpha\naliases: [First, \"The Alpha\"]\nrating: 4\ndone: true\nrelated: [\"[[Beta]]\", \"[[Missing Prop]]\"]\n---\n# Alpha\n\nIntro with #idea and #Idea and a [[Beta]] link and [[Beta|shown]] again.\nSee [[folder/Gamma#Section One]] and [[Gamma]] and [[Nowhere]] and [[Nowhere]].\nEmbed ![[diagram.png]] and [md](folder/sub/Delta.md) and [ext](https://example.com).\n\n## Second heading\nText with pizza recipe mention.\n- [ ] a task #todo\n- [x] done task\n\n### Third ###\nBlock ^blk1\nInline"
+      }
+    },
+    "append path=\"Gamma.md\" content=\"Line\"": {
+      "output": "Appended to: Gamma.md\n",
+      "changes": {
+        "Gamma.md": "Gamma duplicate name in root\nLine"
+      }
+    },
+    "prepend path=\"Alpha.md\" content=\"Prepended\"": {
+      "output": "Prepended to: Alpha.md\n",
+      "changes": {
+        "Alpha.md": "---\ndate_created: 2026-10-20 14:05:00\ntags:\n  - inbox\n  - project/alpha\naliases: [First, \"The Alpha\"]\nrating: 4\ndone: true\nrelated: [\"[[Beta]]\", \"[[Missing Prop]]\"]\n---\nPrepended\n# Alpha\n\nIntro with #idea and #Idea and a [[Beta]] link and [[Beta|shown]] again.\nSee [[folder/Gamma#Section One]] and [[Gamma]] and [[Nowhere]] and [[Nowhere]].\nEmbed ![[diagram.png]] and [md](folder/sub/Delta.md) and [ext](https://example.com).\n\n## Second heading\nText with pizza recipe mention.\n- [ ] a task #todo\n- [x] done task\n\n### Third ###\nBlock ^blk1\n"
+      }
+    },
+    "prepend path=\"Beta.md\" content=\"Top\"": {
+      "output": "Prepended to: Beta.md\n",
+      "changes": {
+        "Beta.md": "Top\n# Beta\n\nBack to [[Alpha]]. Also [[First]] alias link. Pizza is great.\n`#notatag` #real-tag\n"
+      }
+    },
+    "prepend path=\"Beta.md\" content=\"Top\" inline": {
+      "output": "Prepended to: Beta.md\n",
+      "changes": {
+        "Beta.md": "Top# Beta\n\nBack to [[Alpha]]. Also [[First]] alias link. Pizza is great.\n`#notatag` #real-tag\n"
+      }
+    },
+    "property:set path=\"Beta.md\" name=status value=draft": {
+      "output": "Set status: draft\n",
+      "changes": {
+        "Beta.md": "---\nstatus: draft\n---\n# Beta\n\nBack to [[Alpha]]. Also [[First]] alias link. Pizza is great.\n`#notatag` #real-tag\n"
+      }
+    },
+    "property:set path=\"Alpha.md\" name=rating value=5 type=number": {
+      "output": "Set rating: 5\n",
+      "changes": {
+        "Alpha.md": "---\ndate_created: 2026-10-20 14:05:00\ntags:\n  - inbox\n  - project/alpha\naliases:\n  - First\n  - The Alpha\nrating: 5\ndone: true\nrelated:\n  - \"[[Beta]]\"\n  - \"[[Missing Prop]]\"\n---\n# Alpha\n\nIntro with #idea and #Idea and a [[Beta]] link and [[Beta|shown]] again.\nSee [[folder/Gamma#Section One]] and [[Gamma]] and [[Nowhere]] and [[Nowhere]].\nEmbed ![[diagram.png]] and [md](folder/sub/Delta.md) and [ext](https://example.com).\n\n## Second heading\nText with pizza recipe mention.\n- [ ] a task #todo\n- [x] done task\n\n### Third ###\nBlock ^blk1\n"
+      }
+    },
+    "property:set path=\"Alpha.md\" name=status value=draft": {
+      "output": "Set status: draft\n",
+      "changes": {
+        "Alpha.md": "---\ndate_created: 2026-10-20 14:05:00\ntags:\n  - inbox\n  - project/alpha\naliases:\n  - First\n  - The Alpha\nrating: 4\ndone: true\nrelated:\n  - \"[[Beta]]\"\n  - \"[[Missing Prop]]\"\nstatus: draft\n---\n# Alpha\n\nIntro with #idea and #Idea and a [[Beta]] link and [[Beta|shown]] again.\nSee [[folder/Gamma#Section One]] and [[Gamma]] and [[Nowhere]] and [[Nowhere]].\nEmbed ![[diagram.png]] and [md](folder/sub/Delta.md) and [ext](https://example.com).\n\n## Second heading\nText with pizza recipe mention.\n- [ ] a task #todo\n- [x] done task\n\n### Third ###\nBlock ^blk1\n"
+      }
+    },
+    "property:set path=\"Alpha.md\" name=new_list value=\"a, b\" type=list": {
+      "output": "Set new_list: a, b\n",
+      "changes": {
+        "Alpha.md": "---\ndate_created: 2026-10-20 14:05:00\ntags:\n  - inbox\n  - project/alpha\naliases:\n  - First\n  - The Alpha\nrating: 4\ndone: true\nrelated:\n  - \"[[Beta]]\"\n  - \"[[Missing Prop]]\"\nnew_list:\n  - a\n  - b\n---\n# Alpha\n\nIntro with #idea and #Idea and a [[Beta]] link and [[Beta|shown]] again.\nSee [[folder/Gamma#Section One]] and [[Gamma]] and [[Nowhere]] and [[Nowhere]].\nEmbed ![[diagram.png]] and [md](folder/sub/Delta.md) and [ext](https://example.com).\n\n## Second heading\nText with pizza recipe mention.\n- [ ] a task #todo\n- [x] done task\n\n### Third ###\nBlock ^blk1\n"
+      }
+    },
+    "property:set path=\"Alpha.md\" name=date_created value=2026-10-21T10:00 type=datetime": {
+      "output": "Set date_created: 2026-10-21T10:00\n",
+      "changes": {
+        "Alpha.md": "---\ndate_created: 2026-10-21T10:00\ntags:\n  - inbox\n  - project/alpha\naliases:\n  - First\n  - The Alpha\nrating: 4\ndone: true\nrelated:\n  - \"[[Beta]]\"\n  - \"[[Missing Prop]]\"\n---\n# Alpha\n\nIntro with #idea and #Idea and a [[Beta]] link and [[Beta|shown]] again.\nSee [[folder/Gamma#Section One]] and [[Gamma]] and [[Nowhere]] and [[Nowhere]].\nEmbed ![[diagram.png]] and [md](folder/sub/Delta.md) and [ext](https://example.com).\n\n## Second heading\nText with pizza recipe mention.\n- [ ] a task #todo\n- [x] done task\n\n### Third ###\nBlock ^blk1\n"
+      }
+    },
+    "property:set path=\"Alpha.md\" name=done value=false type=checkbox": {
+      "output": "Set done: false\n",
+      "changes": {
+        "Alpha.md": "---\ndate_created: 2026-10-20 14:05:00\ntags:\n  - inbox\n  - project/alpha\naliases:\n  - First\n  - The Alpha\nrating: 4\ndone: false\nrelated:\n  - \"[[Beta]]\"\n  - \"[[Missing Prop]]\"\n---\n# Alpha\n\nIntro with #idea and #Idea and a [[Beta]] link and [[Beta|shown]] again.\nSee [[folder/Gamma#Section One]] and [[Gamma]] and [[Nowhere]] and [[Nowhere]].\nEmbed ![[diagram.png]] and [md](folder/sub/Delta.md) and [ext](https://example.com).\n\n## Second heading\nText with pizza recipe mention.\n- [ ] a task #todo\n- [x] done task\n\n### Third ###\nBlock ^blk1\n"
+      }
+    },
+    "property:set path=\"Alpha.md\" name=when value=2026-10-21 type=date": {
+      "output": "Set when: 2026-10-21\n",
+      "changes": {
+        "Alpha.md": "---\ndate_created: 2026-10-20 14:05:00\ntags:\n  - inbox\n  - project/alpha\naliases:\n  - First\n  - The Alpha\nrating: 4\ndone: true\nrelated:\n  - \"[[Beta]]\"\n  - \"[[Missing Prop]]\"\nwhen: 2026-10-21\n---\n# Alpha\n\nIntro with #idea and #Idea and a [[Beta]] link and [[Beta|shown]] again.\nSee [[folder/Gamma#Section One]] and [[Gamma]] and [[Nowhere]] and [[Nowhere]].\nEmbed ![[diagram.png]] and [md](folder/sub/Delta.md) and [ext](https://example.com).\n\n## Second heading\nText with pizza recipe mention.\n- [ ] a task #todo\n- [x] done task\n\n### Third ###\nBlock ^blk1\n"
+      }
+    },
+    "property:set path=\"Alpha.md\" name=when value=nonsense type=date": {
+      "output": "Error: Invalid date format. Use YYYY-MM-DD\n",
+      "changes": {}
+    },
+    "property:set path=\"Windows Note.md\" name=rating value=3 type=number": {
+      "output": "Set rating: 3\n",
+      "changes": {
+        "Windows Note.md": "---\r\nrating: 3\n---\r\nCRLF note #crlf\r\n"
+      }
+    },
+    "property:set path=\"Beta.md\" name=title value=Beta": {
+      "output": "Set title: Beta\n",
+      "changes": {
+        "Beta.md": "---\ntitle: Beta\n---\n# Beta\n\nBack to [[Alpha]]. Also [[First]] alias link. Pizza is great.\n`#notatag` #real-tag\n"
+      }
+    },
+    "property:set path=\"properties/Value kinds.md\" name=s value=\"new: value\"": {
+      "output": "Set s: new: value\n",
+      "changes": {
+        "properties/Value kinds.md": "---\ns: \"new: value\"\nq: \"quoted: colon\"\nn: 5\nf: 1.5\nb: false\nd: 2026-10-20\ne:\nl:\n  - a\n  - b c\n  - 3\nnested:\n  k: v\nmulti: |\n  line1\n  line2\nlink: \"[[Beta]]\"\nnum_str: \"007\"\nempty_list: []\n---\n"
+      }
+    },
+    "delete path=\"Orphan Note.md\"": {
+      "output": "Moved to trash: Orphan Note.md\n",
+      "changes": {
+        "Orphan Note.md": null
+      }
+    },
+    "delete path=\"Nope.md\"": {
+      "output": "Error: File \"Nope.md\" not found.\n",
+      "changes": {}
+    },
+    "delete path=\"assets/diagram.png\"": {
+      "output": "Moved to trash: assets/diagram.png\n",
+      "changes": {
+        "assets/diagram.png": null
+      }
+    },
+    "rename path=\"folder/Gamma.md\" name=\"Gamma Two\"": {
+      "output": "Renamed: folder/Gamma.md -> folder/Gamma Two.md\n",
+      "changes": {
+        "Alpha.md": "---\ndate_created: 2026-10-20 14:05:00\ntags:\n  - inbox\n  - project/alpha\naliases: [First, \"The Alpha\"]\nrating: 4\ndone: true\nrelated: [\"[[Beta]]\", \"[[Missing Prop]]\"]\n---\n# Alpha\n\nIntro with #idea and #Idea and a [[Beta]] link and [[Beta|shown]] again.\nSee [[Gamma Two#Section One]] and [[Gamma]] and [[Nowhere]] and [[Nowhere]].\nEmbed ![[diagram.png]] and [md](folder/sub/Delta.md) and [ext](https://example.com).\n\n## Second heading\nText with pizza recipe mention.\n- [ ] a task #todo\n- [x] done task\n\n### Third ###\nBlock ^blk1\n",
+        "folder/Gamma Two.md": "---\ntags: resource/cooking\n---\n# Gamma\n\n## Section One\nPizza dough recipe. Links [[Alpha#Second heading]] and [[Beta]].\n",
+        "folder/Gamma.md": null
+      }
+    },
+    "rename path=\"projects/Project Plan.md\" name=Plan": {
+      "output": "Renamed: projects/Project Plan.md -> projects/Plan.md\n",
+      "changes": {
+        "projects/Plan.md": "---\nstatus: active\nowner: \"[[Beta]]\"\ntags: [project, project/alpha/sub]\n---\n# Project Plan\n\n## Heading with `code` and **bold**\n%% hidden #comment-tag [[Commented Link]] %%\n```\n#code-tag [[Code Link]]\n```\nInline `#inline-code-tag` and #project/beta and #2026 and #y2026.\nLinks: [rel](../Beta.md), [angled](<sub dir/Note With Space.md>), [[./Sibling]], [[../Gamma]], [[Gamma]].\nBlock ref [[Alpha#^blk1]] and heading ref [[#Heading with `code` and **bold**]].\n",
+        "projects/Project Plan.md": null,
+        "projects/sub dir/Note With Space.md": "# Note With Space\n\nBack to [[Plan]].\n"
+      }
+    },
+    "move path=\"projects/Sibling.md\" to=\"Sibling Moved.md\"": {
+      "output": "Moved: projects/Sibling.md -> Sibling Moved.md\n",
+      "changes": {
+        "Sibling Moved.md": "Sibling of the plan. #idea\n",
+        "projects/Project Plan.md": "---\nstatus: active\nowner: \"[[Beta]]\"\ntags: [project, project/alpha/sub]\n---\n# Project Plan\n\n## Heading with `code` and **bold**\n%% hidden #comment-tag [[Commented Link]] %%\n```\n#code-tag [[Code Link]]\n```\nInline `#inline-code-tag` and #project/beta and #2026 and #y2026.\nLinks: [rel](../Beta.md), [angled](<sub dir/Note With Space.md>), [[Sibling Moved]], [[../Gamma]], [[Gamma]].\nBlock ref [[Alpha#^blk1]] and heading ref [[#Heading with `code` and **bold**]].\n",
+        "projects/Sibling.md": null
+      }
+    },
+    "move path=\"folder/sub/Delta.md\" to=projects": {
+      "output": "Moved: folder/sub/Delta.md -> projects/Delta.md\n",
+      "changes": {
+        "Alpha.md": "---\ndate_created: 2026-10-20 14:05:00\ntags:\n  - inbox\n  - project/alpha\naliases: [First, \"The Alpha\"]\nrating: 4\ndone: true\nrelated: [\"[[Beta]]\", \"[[Missing Prop]]\"]\n---\n# Alpha\n\nIntro with #idea and #Idea and a [[Beta]] link and [[Beta|shown]] again.\nSee [[folder/Gamma#Section One]] and [[Gamma]] and [[Nowhere]] and [[Nowhere]].\nEmbed ![[diagram.png]] and [md](Delta.md) and [ext](https://example.com).\n\n## Second heading\nText with pizza recipe mention.\n- [ ] a task #todo\n- [x] done task\n\n### Third ###\nBlock ^blk1\n",
+        "folder/sub/Delta.md": null,
+        "projects/Delta.md": "Plain note without heading, mentions PIZZA and [[Alpha]] and [[Unknown Thing|x]].\n"
+      }
+    },
+    "move path=\"projects/sub dir/Note With Space.md\" to=\"Space Moved.md\"": {
+      "output": "Moved: projects/sub dir/Note With Space.md -> Space Moved.md\n",
+      "changes": {
+        "Space Moved.md": "# Note With Space\n\nBack to [[Project Plan]].\n",
+        "projects/Project Plan.md": "---\nstatus: active\nowner: \"[[Beta]]\"\ntags: [project, project/alpha/sub]\n---\n# Project Plan\n\n## Heading with `code` and **bold**\n%% hidden #comment-tag [[Commented Link]] %%\n```\n#code-tag [[Code Link]]\n```\nInline `#inline-code-tag` and #project/beta and #2026 and #y2026.\nLinks: [rel](../Beta.md), [angled](<Space Moved.md>), [[./Sibling]], [[../Gamma]], [[Gamma]].\nBlock ref [[Alpha#^blk1]] and heading ref [[#Heading with `code` and **bold**]].\n",
+        "projects/sub dir/Note With Space.md": null
+      }
+    },
+    "move path=\"assets/diagram.png\" to=attachments": {
+      "output": "Moved: assets/diagram.png -> attachments/diagram.png\n",
+      "changes": {
+        "assets/diagram.png": null,
+        "attachments/diagram.png": "base64:YmluYXJ5"
+      }
+    }
   }
 }

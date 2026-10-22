@@ -1,0 +1,36 @@
+# Write commands that backroom must carry out like the Obsidian CLI on test-vault/, one per line.
+# Each runs on a fresh copy of the vault. The output and every file it changes have to match, except for .trash/:
+# Obsidian's CLI moves deleted files to the system trash, backroom to .trash/ (ADR 2).
+# A leading "~ " compares frontmatter by its parsed properties: Obsidian rewrites all of the frontmatter when it
+# changes one property, backroom only the property's own text (ADR 2).
+# Case-only renames are left out: git cannot undo them on a case-insensitive file system, which confuses Obsidian.
+# Record with `bun compat/record.ts` while test-vault is open in Obsidian; it resets test-vault with git after each.
+
+create path="New.md" content="# New\n\nText"
+create name=Plain
+create path="folder/Deep/New.md" content=x
+append path="Alpha.md" content="Inline" inline
+append path="Gamma.md" content="Line"
+prepend path="Alpha.md" content="Prepended"
+prepend path="Beta.md" content="Top"
+prepend path="Beta.md" content="Top" inline
+property:set path="Beta.md" name=status value=draft
+~ property:set path="Alpha.md" name=rating value=5 type=number
+~ property:set path="Alpha.md" name=status value=draft
+~ property:set path="Alpha.md" name=new_list value="a, b" type=list
+~ property:set path="Alpha.md" name=date_created value=2026-10-21T10:00 type=datetime
+~ property:set path="Alpha.md" name=done value=false type=checkbox
+~ property:set path="Alpha.md" name=when value=2026-10-21 type=date
+~ property:set path="Alpha.md" name=when value=nonsense type=date
+~ property:set path="Windows Note.md" name=rating value=3 type=number
+property:set path="Beta.md" name=title value=Beta
+~ property:set path="properties/Value kinds.md" name=s value="new: value"
+delete path="Orphan Note.md"
+delete path="Nope.md"
+delete path="assets/diagram.png"
+rename path="folder/Gamma.md" name="Gamma Two"
+rename path="projects/Project Plan.md" name=Plan
+move path="projects/Sibling.md" to="Sibling Moved.md"
+move path="folder/sub/Delta.md" to=projects
+move path="projects/sub dir/Note With Space.md" to="Space Moved.md"
+move path="assets/diagram.png" to=attachments
