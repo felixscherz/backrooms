@@ -17,7 +17,7 @@ export type StoredCredential = Credential & {
   usedAt: number | null;
 };
 
-/** The SQLite database of backroom's authorization server, in its state folder or in memory for tests. */
+/** The SQLite database of backrooms' authorization server, in its state folder or in memory for tests. */
 export class OAuthStore {
   private readonly db: Database;
 

@@ -1,10 +1,11 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import type { Engine } from "./engine";
+import { favicon } from "./favicon";
 import { createMcpServer } from "./mcp";
 import type { AuthorizationServer } from "./oauth";
 
 /**
- * backroom over HTTP (ADR 8): the MCP endpoint at `/mcp`, open only with an access token, and the authorization
+ * backrooms over HTTP (ADR 8): the MCP endpoint at `/mcp`, open only with an access token, and the authorization
  * server that issues those tokens. All requests share the engine, so writes stay in turn.
  */
 export function httpHandler(engine: Engine, auth: AuthorizationServer): (request: Request) => Promise<Response> {
@@ -30,13 +31,17 @@ export function httpHandler(engine: Engine, auth: AuthorizationServer): (request
         await server.close();
       }
     }
+    if (request.method === "GET") {
+      const icon = favicon(path);
+      if (icon) return icon;
+    }
     return (await auth.handle(request)) ?? new Response("Not found", { status: 404 });
   };
 }
 
 export type ServeOptions = { hostname: string; port: number; pullIntervalMs: number };
 
-/** Serves backroom over HTTP until the process is stopped, pulling from the remote every interval in sync mode. */
+/** Serves backrooms over HTTP until the process is stopped, pulling from the remote every interval in sync mode. */
 export function serveHttp(engine: Engine, auth: AuthorizationServer, options: ServeOptions) {
   const server = Bun.serve({ hostname: options.hostname, port: options.port, fetch: httpHandler(engine, auth) });
   const timer = engine.git?.mode === "sync" ? setInterval(() => void engine.pull(), options.pullIntervalMs) : null;

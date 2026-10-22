@@ -15,10 +15,10 @@ afterEach(async () => {
   for (const step of cleanup.splice(0)) await step();
 });
 
-/** `backroom mcp` running as its own process, spoken to over stdio the way an MCP client does. */
+/** `backrooms mcp` running as its own process, spoken to over stdio the way an MCP client does. */
 async function mcpServer(vault: TempVault, env: Record<string, string> = {}) {
   const server = Bun.spawn([process.execPath, MAIN, "mcp"], {
-    env: { ...process.env, BACKROOM_VAULT: vault.root, ...env },
+    env: { ...process.env, BACKROOMS_VAULT: vault.root, ...env },
     stdin: "pipe",
     stdout: "pipe",
     stderr: "pipe",
@@ -90,7 +90,7 @@ async function eventually(check: () => Promise<boolean>): Promise<void> {
   throw new Error("The condition was not met within 5 seconds.");
 }
 
-describe("backroom mcp", () => {
+describe("backrooms mcp", () => {
   test("serves the vault's tools over stdio", async () => {
     const vault = await vaultWith({ "Pizza.md": "# Pizza\n" });
     const server = await mcpServer(vault);
@@ -115,7 +115,7 @@ describe("backroom mcp", () => {
     const vault = await vaultWith({ "A.md": "a" }, "sync");
     const remote = await gitRemote(vault.root);
     cleanup.push(() => remote.remove());
-    await mcpServer(vault, { BACKROOM_GIT: "sync", BACKROOM_PULL_INTERVAL: "0.1" });
+    await mcpServer(vault, { BACKROOMS_GIT: "sync", BACKROOMS_PULL_INTERVAL: "0.1" });
 
     await remote.pushFromOther("Phone.md", "from the phone");
 
@@ -127,7 +127,7 @@ describe("backroom mcp", () => {
     const vault = await vaultWith({ "A.md": "a" }, "sync");
     const remote = await gitRemote(vault.root);
     cleanup.push(() => remote.remove());
-    const server = await mcpServer(vault, { BACKROOM_GIT: "sync", BACKROOM_PULL_INTERVAL: "0.1" });
+    const server = await mcpServer(vault, { BACKROOMS_GIT: "sync", BACKROOMS_PULL_INTERVAL: "0.1" });
 
     await server.process.stdin.end();
 
@@ -140,19 +140,19 @@ describe("configuration", () => {
   test("a pull interval that is not a positive number of seconds is refused", async () => {
     const vault = await vaultWith({});
     const run = Bun.spawn([process.execPath, MAIN, "mcp"], {
-      env: { ...process.env, BACKROOM_VAULT: vault.root, BACKROOM_PULL_INTERVAL: "soon" },
+      env: { ...process.env, BACKROOMS_VAULT: vault.root, BACKROOMS_PULL_INTERVAL: "soon" },
       stdin: "ignore",
       stdout: "pipe",
     });
 
     expect(await run.exited).toBe(1);
     expect(await new Response(run.stdout).text()).toBe(
-      'Error: BACKROOM_PULL_INTERVAL must be a positive number of seconds, not "soon".\n',
+      'Error: BACKROOMS_PULL_INTERVAL must be a positive number of seconds, not "soon".\n',
     );
   });
 });
 
-describe("backroom serve", () => {
+describe("backrooms serve", () => {
   async function waitForServer(url: string): Promise<Response> {
     for (const deadline = Date.now() + 5000; Date.now() < deadline; await Bun.sleep(50)) {
       try {
@@ -164,18 +164,18 @@ describe("backroom serve", () => {
 
   test("serves the MCP endpoint behind OAuth and stops on SIGTERM", async () => {
     const vault = await vaultWith({ "A.md": "a" });
-    const state = await mkdtemp(join(tmpdir(), "backroom-state-"));
+    const state = await mkdtemp(join(tmpdir(), "backrooms-state-"));
     cleanup.push(() => rm(state, { recursive: true, force: true }));
     const port = 20000 + Math.floor(Math.random() * 20000);
     const hash = await Bun.password.hash("a long passphrase for tests", { algorithm: "argon2id" });
     const server = Bun.spawn([process.execPath, MAIN, "serve"], {
       env: {
         ...process.env,
-        BACKROOM_VAULT: vault.root,
-        BACKROOM_URL: `http://localhost:${port}`,
-        BACKROOM_LISTEN: `127.0.0.1:${port}`,
-        BACKROOM_PASSPHRASE_HASH: hash,
-        BACKROOM_STATE: state,
+        BACKROOMS_VAULT: vault.root,
+        BACKROOMS_URL: `http://localhost:${port}`,
+        BACKROOMS_LISTEN: `127.0.0.1:${port}`,
+        BACKROOMS_PASSPHRASE_HASH: hash,
+        BACKROOMS_STATE: state,
       },
       stdout: "pipe",
       stderr: "pipe",
@@ -199,23 +199,23 @@ describe("backroom serve", () => {
   test("refuses to start without its configuration, and says what is missing", () => {
     const hash = "$argon2id$v=19$m=65536,t=2,p=1$abc$def";
 
-    expect(serverConfig({})).toContain("Set BACKROOM_URL");
-    expect(serverConfig({ BACKROOM_URL: "http://backroom.example.com", BACKROOM_PASSPHRASE_HASH: hash })).toContain(
+    expect(serverConfig({})).toContain("Set BACKROOMS_URL");
+    expect(serverConfig({ BACKROOMS_URL: "http://backrooms.example.com", BACKROOMS_PASSPHRASE_HASH: hash })).toContain(
       "must use https",
     );
     expect(
-      serverConfig({ BACKROOM_URL: "https://backroom.example.com/mcp", BACKROOM_PASSPHRASE_HASH: hash }),
+      serverConfig({ BACKROOMS_URL: "https://backrooms.example.com/mcp", BACKROOMS_PASSPHRASE_HASH: hash }),
     ).toContain("without a path");
-    expect(serverConfig({ BACKROOM_URL: "https://backroom.example.com" })).toContain("BACKROOM_PASSPHRASE_HASH");
+    expect(serverConfig({ BACKROOMS_URL: "https://backrooms.example.com" })).toContain("BACKROOMS_PASSPHRASE_HASH");
     expect(
       serverConfig({
-        BACKROOM_URL: "https://backroom.example.com",
-        BACKROOM_PASSPHRASE_HASH: hash,
-        BACKROOM_CLIENT_ORIGINS: "https://claude.ai, http://opencode.local",
+        BACKROOMS_URL: "https://backrooms.example.com",
+        BACKROOMS_PASSPHRASE_HASH: hash,
+        BACKROOMS_CLIENT_ORIGINS: "https://claude.ai, http://opencode.local",
       }),
     ).toContain('"http://opencode.local"');
-    expect(serverConfig({ BACKROOM_URL: "https://backroom.example.com/", BACKROOM_PASSPHRASE_HASH: hash })).toEqual({
-      url: "https://backroom.example.com",
+    expect(serverConfig({ BACKROOMS_URL: "https://backrooms.example.com/", BACKROOMS_PASSPHRASE_HASH: hash })).toEqual({
+      url: "https://backrooms.example.com",
       passphraseHash: hash,
       clientOrigins: ["https://claude.ai"],
       hostname: "127.0.0.1",
@@ -224,7 +224,7 @@ describe("backroom serve", () => {
   });
 });
 
-describe("backroom auth", () => {
+describe("backrooms auth", () => {
   test("auth:hash prints an argon2id hash of the passphrase on stdin, and refuses a short one", async () => {
     const run = async (input: string) => {
       const process = Bun.spawn([globalThis.process.execPath, MAIN, "auth:hash"], {
@@ -246,14 +246,14 @@ describe("backroom auth", () => {
   });
 
   test("auth:revoke ends every sign-in in the state folder", async () => {
-    const state = await mkdtemp(join(tmpdir(), "backroom-state-"));
+    const state = await mkdtemp(join(tmpdir(), "backrooms-state-"));
     cleanup.push(() => rm(state, { recursive: true, force: true }));
     const store = new OAuthStore(join(state, "oauth.sqlite"));
     const token = store.issue({ kind: "access", grant: "g", clientId: "c", resource: "r" }, Date.now() + 60_000);
     store.close();
 
     const process = Bun.spawn([globalThis.process.execPath, MAIN, "auth:revoke"], {
-      env: { ...globalThis.process.env, BACKROOM_STATE: state },
+      env: { ...globalThis.process.env, BACKROOMS_STATE: state },
       stdout: "pipe",
     });
 

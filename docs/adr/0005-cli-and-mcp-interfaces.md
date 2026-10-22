@@ -24,8 +24,8 @@ The project offers two interfaces, a CLI and an MCP server, as thin layers over 
 
 - Each vault operation exists once in the engine. The CLI command and the MCP tool for it only translate arguments and
   results.
-- Both ship in the same executable, for example `backroom read path="Note.md"` and `backroom mcp`.
-- Commands follow the Obsidian CLI for the features backroom supports: the same command names, `key=value`
+- Both ship in the same executable, for example `backrooms read path="Note.md"` and `backrooms mcp`.
+- Commands follow the Obsidian CLI for the features backrooms supports: the same command names, `key=value`
   parameters and output formats. Agents and skills written against the Obsidian CLI then need few changes. MCP tools use
   the same names, with `:` replaced by `_` (`search:context` becomes `search_context`), because MCP tool names do not
   allow colons. Operations the Obsidian CLI has no command for get their own names. ADR 9 replaces this rule for MCP

@@ -7,26 +7,26 @@ export type ErrorCode =
   | "conflict"
   /** A parameter is missing or malformed. */
   | "invalid_argument"
-  /** The vault is in a state where backroom cannot tell how Obsidian would read it, so it refuses to write. */
+  /** The vault is in a state where backrooms cannot tell how Obsidian would read it, so it refuses to write. */
   | "unsafe"
-  /** Obsidian supports this, backroom does not. */
+  /** Obsidian supports this, backrooms does not. */
   | "unsupported"
   /** The disk refused a write. The message says whether the vault was left unchanged. */
   | "write_failed"
-  /** Another backroom process kept the vault's write lock for too long. */
+  /** Another backrooms process kept the vault's write lock for too long. */
   | "busy";
 
 /** An error the caller can act on. Its message is meant to be shown to the caller as is. */
-export class BackroomError extends Error {
+export class BackroomsError extends Error {
   constructor(
     readonly code: ErrorCode,
     message: string,
   ) {
     super(message);
-    this.name = "BackroomError";
+    this.name = "BackroomsError";
   }
 }
 
-export function fileNotFound(path: string): BackroomError {
-  return new BackroomError("not_found", `File "${path}" not found.`);
+export function fileNotFound(path: string): BackroomsError {
+  return new BackroomsError("not_found", `File "${path}" not found.`);
 }

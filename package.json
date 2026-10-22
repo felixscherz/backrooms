@@ -1,16 +1,16 @@
 {
-  "name": "backroom",
+  "name": "backrooms",
   "module": "src/main.ts",
   "type": "module",
   "private": true,
   "bin": {
-    "backroom": "src/main.ts"
+    "backrooms": "src/main.ts"
   },
   "scripts": {
     "typecheck": "bun check",
-    "build": "bun build --compile src/main.ts --outfile dist/backroom",
+    "build": "bun build --compile src/main.ts --outfile dist/backrooms",
     "format": "bunx prettier@3.3.3 --write \"src/**/*.ts\" \"compat/**/*.ts\"",
-    "build:linux": "bun build --compile --target=bun-linux-x64 src/main.ts --outfile dist/backroom-linux-x64"
+    "build:linux": "bun build --compile --target=bun-linux-x64 src/main.ts --outfile dist/backrooms-linux-x64"
   },
   "devDependencies": {
     "@types/bun": "latest"

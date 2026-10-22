@@ -1,6 +1,6 @@
-# Commands that backroom must answer like the Obsidian CLI on test-vault/.
+# Commands that backrooms must answer like the Obsidian CLI on test-vault/.
 # One command per line, with shell quoting. A leading "~ " means the order of the output lines (or of a json array)
-# does not matter: Obsidian returns search results in the order it indexed the files, which backroom cannot know.
+# does not matter: Obsidian returns search results in the order it indexed the files, which backrooms cannot know.
 # Record Obsidian's answers with `bun compat/record.ts` while test-vault is open in Obsidian.
 
 read path="Alpha.md"

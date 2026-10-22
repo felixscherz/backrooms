@@ -6,9 +6,9 @@ import { helpText, parseArguments, runCli } from "./cli";
 import { Engine } from "./engine";
 import { Git, type GitMode } from "./git";
 
-/** The vault is BACKROOM_VAULT, or the nearest folder at or above `cwd` that holds a `.obsidian` folder. */
+/** The vault is BACKROOMS_VAULT, or the nearest folder at or above `cwd` that holds a `.obsidian` folder. */
 export function findVault(env: Record<string, string | undefined>, cwd: string): string | null {
-  const configured = env.BACKROOM_VAULT;
+  const configured = env.BACKROOMS_VAULT;
   if (configured) return resolve(cwd, configured);
   for (let folder = resolve(cwd); ; folder = dirname(folder)) {
     const settings = join(folder, ".obsidian");
@@ -22,7 +22,7 @@ function env(name: string): string | undefined {
   return value === undefined || value === "" ? undefined : value;
 }
 
-/** The settings of `backroom serve` (ADR 8), or what is wrong with them. */
+/** The settings of `backrooms serve` (ADR 8), or what is wrong with them. */
 export type ServerConfig = {
   url: string;
   passphraseHash: string;
@@ -32,49 +32,50 @@ export type ServerConfig = {
 };
 
 export function serverConfig(env: Record<string, string | undefined>): ServerConfig | string {
-  const url = env.BACKROOM_URL;
-  if (!url) return "Set BACKROOM_URL to backroom's public URL, such as https://backroom.example.com.";
+  const url = env.BACKROOMS_URL;
+  if (!url) return "Set BACKROOMS_URL to backrooms' public URL, such as https://backrooms.example.com.";
   let parsed: URL;
   try {
     parsed = new URL(url);
   } catch {
-    return `BACKROOM_URL "${url}" is not a URL.`;
+    return `BACKROOMS_URL "${url}" is not a URL.`;
   }
   const local = ["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname);
   if (parsed.protocol !== "https:" && !(local && parsed.protocol === "http:")) {
-    return "BACKROOM_URL must use https, since the passphrase is entered there. Only localhost may use http.";
+    return "BACKROOMS_URL must use https, since the passphrase is entered there. Only localhost may use http.";
   }
   if (parsed.pathname !== "/" || parsed.search !== "" || parsed.hash !== "") {
-    return "BACKROOM_URL must be an origin without a path, such as https://backroom.example.com.";
+    return "BACKROOMS_URL must be an origin without a path, such as https://backrooms.example.com.";
   }
-  const passphraseHash = env.BACKROOM_PASSPHRASE_HASH;
+  const passphraseHash = env.BACKROOMS_PASSPHRASE_HASH;
   if (!passphraseHash?.startsWith("$argon2id$")) {
-    return "Set BACKROOM_PASSPHRASE_HASH to the output of `backroom auth:hash`.";
+    return "Set BACKROOMS_PASSPHRASE_HASH to the output of `backrooms auth:hash`.";
   }
-  const clientOrigins = (env.BACKROOM_CLIENT_ORIGINS ?? "https://claude.ai").split(",").map((origin) => origin.trim());
+  const clientOrigins = (env.BACKROOMS_CLIENT_ORIGINS ?? "https://claude.ai").split(",").map((origin) => origin.trim());
   for (const origin of clientOrigins) {
     if (!/^https:\/\/[^/]+$/.test(origin))
-      return `BACKROOM_CLIENT_ORIGINS has "${origin}", which is not an https origin.`;
+      return `BACKROOMS_CLIENT_ORIGINS has "${origin}", which is not an https origin.`;
   }
-  const listen = env.BACKROOM_LISTEN ?? "127.0.0.1:8484";
+  const listen = env.BACKROOMS_LISTEN ?? "127.0.0.1:8484";
   const match = /^(.+):(\d+)$/.exec(listen);
-  if (!match) return `BACKROOM_LISTEN must be host:port, not "${listen}".`;
+  if (!match) return `BACKROOMS_LISTEN must be host:port, not "${listen}".`;
   return { url: parsed.origin, passphraseHash, clientOrigins, hostname: match[1]!, port: Number(match[2]) };
 }
 
-/** The folder for backroom's own state, such as OAuth sign-ins: BACKROOM_STATE, else the XDG state folder. */
+/** The folder for backrooms' own state, such as OAuth sign-ins: BACKROOMS_STATE, else the XDG state folder. */
 function stateFolder(): string {
-  const folder = env("BACKROOM_STATE") ?? join(env("XDG_STATE_HOME") ?? join(homedir(), ".local", "state"), "backroom");
+  const folder =
+    env("BACKROOMS_STATE") ?? join(env("XDG_STATE_HOME") ?? join(homedir(), ".local", "state"), "backrooms");
   mkdirSync(folder, { recursive: true, mode: 0o700 });
   return folder;
 }
 
 function pullInterval(): number | string {
-  const interval = env("BACKROOM_PULL_INTERVAL") ?? "60";
+  const interval = env("BACKROOMS_PULL_INTERVAL") ?? "60";
   const seconds = Number(interval);
   return seconds > 0
     ? seconds * 1000
-    : `BACKROOM_PULL_INTERVAL must be a positive number of seconds, not "${interval}".`;
+    : `BACKROOMS_PULL_INTERVAL must be a positive number of seconds, not "${interval}".`;
 }
 
 const MIN_PASSPHRASE_LENGTH = 16;
@@ -109,17 +110,17 @@ async function main(argv: string[]): Promise<number> {
   }
   const root = findVault(process.env, process.cwd());
   if (!root || !existsSync(root)) {
-    console.log("Error: No vault found. Set BACKROOM_VAULT or run backroom inside a vault with a .obsidian folder.");
+    console.log("Error: No vault found. Set BACKROOMS_VAULT or run backrooms inside a vault with a .obsidian folder.");
     return 1;
   }
-  const mode = env("BACKROOM_GIT") ?? "off";
+  const mode = env("BACKROOMS_GIT") ?? "off";
   if (!isGitMode(mode)) {
-    console.log(`Error: BACKROOM_GIT must be off, commit or sync, not "${mode}".`);
+    console.log(`Error: BACKROOMS_GIT must be off, commit or sync, not "${mode}".`);
     return 1;
   }
   const isRepository = existsSync(join(root, ".git"));
   if (mode !== "off" && !isRepository) {
-    console.log(`Error: BACKROOM_GIT is ${mode}, but the vault at ${root} is not a git repository.`);
+    console.log(`Error: BACKROOMS_GIT is ${mode}, but the vault at ${root} is not a git repository.`);
     return 1;
   }
   const engine = new Engine(root, isRepository ? { git: new Git(root, mode) } : {});
@@ -153,7 +154,7 @@ async function main(argv: string[]): Promise<number> {
       clock: systemClock,
     });
     const server = serveHttp(engine, auth, { hostname: config.hostname, port: config.port, pullIntervalMs: interval });
-    console.log(`backroom serves ${root} at ${config.url}/mcp, listening on ${server.url}`);
+    console.log(`backrooms serves ${root} at ${config.url}/mcp, listening on ${server.url}`);
     await new Promise<void>((resolve) => {
       process.once("SIGTERM", resolve);
       process.once("SIGINT", resolve);

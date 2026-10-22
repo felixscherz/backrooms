@@ -44,7 +44,7 @@ place. This replaces the rule of ADR 5 that MCP tools use the CLI's command name
 | `edit` | Changes a note: replaces text, appends, prepends, sets or removes properties | `append`, `prepend`, `edit`, `property_set`, `property_remove` | write |
 | `move` | Moves or renames a note and updates links to it | `move`, `rename` | write |
 | `delete` | Moves a note to the vault's `.trash` folder | `delete` | destructive |
-| `undo` | Undoes a commit backroom made, as a new commit | `git_revert` | destructive |
+| `undo` | Undoes a commit backrooms made, as a new commit | `git_revert` | destructive |
 
 Each tool declares the MCP annotations `readOnlyHint` or `destructiveHint`, so a client can allow the read-only tools
 without asking each time.
@@ -128,14 +128,14 @@ The MCP server sends instructions in two parts:
 - Fixed text on how the tools work together: find notes with `search` or `list`, read them with `read`, change them
   with `edit` and the `version` from `read`.
 - The vault's own conventions, from the note `AGENTS.md` at the vault root when it exists, such as how notes are named
-  and in which languages they are written. The vault's owner changes them in Obsidian, without redeploying backroom.
+  and in which languages they are written. The vault's owner changes them in Obsidian, without redeploying backrooms.
   The note is read when a client connects, so a change applies to the next connection.
 
 ### The CLI
 
 The CLI stays compatible with the Obsidian CLI for now. If the CLI should later follow the MCP tools, so that
-`backroom move` takes the same arguments as the `move` tool, the Obsidian-compatible commands move to
-`backroom obsidian <command>`. That change needs its own decision.
+`backrooms move` takes the same arguments as the `move` tool, the Obsidian-compatible commands move to
+`backrooms obsidian <command>`. That change needs its own decision.
 
 ### Not decided here
 
@@ -148,7 +148,7 @@ The CLI stays compatible with the Obsidian CLI for now. If the CLI should later 
 - An agent sees 10 tools instead of 32, with descriptions it can choose from, and needs fewer calls for common tasks.
 - The CLI and the MCP tools no longer share names and arguments. Each MCP tool needs tests that call it through MCP,
   and ADR 5's consequence that every operation can be tried from the shell holds only until the CLI follows the tools.
-- The second-brain skill, written against the Obsidian CLI, needs a separate way of working when it uses backroom
+- The second-brain skill, written against the Obsidian CLI, needs a separate way of working when it uses backrooms
   remotely through MCP.
 - New engine operations are needed: reading a section, `edit` as one atomic write of several changes, listing by last
   change, and the sync state in words.

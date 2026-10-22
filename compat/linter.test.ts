@@ -28,7 +28,7 @@ describe(`lints like the Linter ${recording.linter} in Obsidian ${recording.obsi
     test(command.line, async () => {
       const expected = recording.writes[command.line];
       if (expected === undefined) throw new Error("Not recorded yet. Run `bun compat/record-linter.ts`.");
-      const copy = await mkdtemp(join(tmpdir(), "backroom-linter-"));
+      const copy = await mkdtemp(join(tmpdir(), "backrooms-linter-"));
       copies.push(copy);
       // A fresh copy dates its notes now, as the recorder does by checking them out again before each write.
       await cp(LINTER_VAULT, copy, { recursive: true });

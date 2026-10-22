@@ -7,7 +7,7 @@ import { AuthorizationServer, hashPassphrase } from "./oauth";
 import { OAuthStore } from "./oauth-store";
 import { tempVault, type TempVault } from "./testing/temp-vault";
 
-const ISSUER = "https://backroom.test";
+const ISSUER = "https://backrooms.test";
 const MCP = `${ISSUER}/mcp`;
 const PASSPHRASE = "correct horse battery staple";
 
@@ -45,8 +45,8 @@ afterEach(async () => {
   for (const vault of vaults.splice(0)) await vault.remove();
 });
 
-/** backroom over HTTP on a temporary vault, with a clock the test moves and client documents served from memory. */
-async function backroom(options: { documents?: Record<string, unknown> } = {}) {
+/** backrooms over HTTP on a temporary vault, with a clock the test moves and client documents served from memory. */
+async function backrooms(options: { documents?: Record<string, unknown> } = {}) {
   const vault = await tempVault({ "Pizza.md": "# Pizza\n" });
   vaults.push(vault);
   let now = new Date("2026-10-22T10:00:00Z").getTime();
@@ -77,7 +77,7 @@ async function backroom(options: { documents?: Record<string, unknown> } = {}) {
   };
 }
 
-type Backroom = Awaited<ReturnType<typeof backroom>>;
+type Backrooms = Awaited<ReturnType<typeof backrooms>>;
 type Client = { clientId: string; redirectUri: string };
 
 function pkce() {
@@ -102,7 +102,7 @@ function authorizeUrl(client: Client, challenge: string, overrides: Record<strin
 }
 
 /** Opens the sign-in page and submits the passphrase, returning the response to the submission. */
-async function submitPassphrase(server: Backroom, url: string, passphrase = PASSPHRASE): Promise<Response> {
+async function submitPassphrase(server: Backrooms, url: string, passphrase = PASSPHRASE): Promise<Response> {
   const pageResponse = await server.request(url);
   expect(pageResponse.status).toBe(200);
   const requestId = /name="request" value="([^"]+)"/.exec(await pageResponse.text())![1]!;
@@ -112,7 +112,7 @@ async function submitPassphrase(server: Backroom, url: string, passphrase = PASS
   });
 }
 
-function tokenRequest(server: Backroom, params: Record<string, string>) {
+function tokenRequest(server: Backrooms, params: Record<string, string>) {
   return server.request("/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -121,7 +121,7 @@ function tokenRequest(server: Backroom, params: Record<string, string>) {
 }
 
 /** Signs in the way Claude does and returns the tokens. */
-async function signIn(server: Backroom, client: Client = CLAUDE) {
+async function signIn(server: Backrooms, client: Client = CLAUDE) {
   const { verifier, challenge } = pkce();
   const location = new URL((await submitPassphrase(server, authorizeUrl(client, challenge))).headers.get("Location")!);
   const response = await tokenRequest(server, {
@@ -136,7 +136,7 @@ async function signIn(server: Backroom, client: Client = CLAUDE) {
   return (await response.json()) as { access_token: string; refresh_token: string; expires_in: number };
 }
 
-function callTool(server: Backroom, token: string | null, name: string, args: Record<string, unknown>) {
+function callTool(server: Backrooms, token: string | null, name: string, args: Record<string, unknown>) {
   return server.request("/mcp", {
     method: "POST",
     headers: {
@@ -155,7 +155,7 @@ async function toolText(response: Response): Promise<string> {
 
 describe("discovery", () => {
   test("the MCP endpoint answers without a token with 401 and points to its metadata", async () => {
-    const server = await backroom();
+    const server = await backrooms();
 
     const response = await callTool(server, null, "read", { path: "Pizza.md" });
 
@@ -165,8 +165,8 @@ describe("discovery", () => {
     );
   });
 
-  test("the metadata names the MCP endpoint, backroom as its issuer, PKCE and client metadata documents", async () => {
-    const server = await backroom();
+  test("the metadata names the MCP endpoint, backrooms as its issuer, PKCE and client metadata documents", async () => {
+    const server = await backrooms();
 
     const resource = await (await server.request("/.well-known/oauth-protected-resource/mcp")).json();
     const rootResource = await (await server.request("/.well-known/oauth-protected-resource")).json();
@@ -184,11 +184,25 @@ describe("discovery", () => {
     });
     expect(issuer).not.toHaveProperty("registration_endpoint");
   });
+
+  test("the icon is served as a favicon without signing in, so clients and browsers can show it", async () => {
+    const server = await backrooms();
+
+    const ico = await server.request("/favicon.ico");
+    const svg = await server.request("/favicon.svg");
+
+    expect(ico.status).toBe(200);
+    expect(ico.headers.get("Content-Type")).toBe("image/png");
+    expect(new Uint8Array(await ico.arrayBuffer()).slice(0, 4)).toEqual(new Uint8Array([0x89, 0x50, 0x4e, 0x47]));
+    expect(svg.status).toBe(200);
+    expect(svg.headers.get("Content-Type")).toBe("image/svg+xml");
+    expect(await svg.text()).toStartWith("<svg");
+  });
 });
 
 describe("signing in", () => {
   test("Claude signs in with the passphrase and then uses the vault's tools", async () => {
-    const server = await backroom();
+    const server = await backrooms();
 
     const tokens = await signIn(server);
     const response = await callTool(server, tokens.access_token, "read", { path: "Pizza.md" });
@@ -199,7 +213,7 @@ describe("signing in", () => {
   });
 
   test("an MCP client connects, lists the tools and calls one over HTTP with its token", async () => {
-    const server = await backroom();
+    const server = await backrooms();
     const tokens = await signIn(server);
     const transport = new StreamableHTTPClientTransport(new URL(MCP), {
       fetch: (url, init) => server.request(String(url), init as RequestInit),
@@ -218,7 +232,7 @@ describe("signing in", () => {
   });
 
   test("Claude Code signs in through a loopback redirect on any port", async () => {
-    const server = await backroom();
+    const server = await backrooms();
 
     const tokens = await signIn(server, CLAUDE_CODE);
 
@@ -226,7 +240,7 @@ describe("signing in", () => {
   });
 
   test("the sign-in page names the client and where it redirects, and cannot be framed or run scripts", async () => {
-    const server = await backroom();
+    const server = await backrooms();
 
     const response = await server.request(authorizeUrl(CLAUDE, pkce().challenge));
     const html = await response.text();
@@ -237,9 +251,18 @@ describe("signing in", () => {
     expect(response.headers.get("Content-Security-Policy")).toContain("default-src 'none'");
   });
 
+  test("the sign-in page shows the icon", async () => {
+    const server = await backrooms();
+
+    const response = await server.request(authorizeUrl(CLAUDE, pkce().challenge));
+
+    expect(await response.text()).toContain('<link rel="icon" href="/favicon.svg" type="image/svg+xml">');
+    expect(response.headers.get("Content-Security-Policy")).toContain("img-src 'self'");
+  });
+
   test("the sign-in page lets the browser follow the redirect to the client after the form is sent", async () => {
     // Browsers apply form-action to the redirect that answers a form, so the client's origin has to be allowed.
-    const server = await backroom();
+    const server = await backrooms();
 
     const claude = await server.request(authorizeUrl(CLAUDE, pkce().challenge));
     const claudeCode = await server.request(authorizeUrl(CLAUDE_CODE, pkce().challenge));
@@ -251,7 +274,7 @@ describe("signing in", () => {
   });
 
   test("the redirect carries the code, the state and the issuer", async () => {
-    const server = await backroom();
+    const server = await backrooms();
 
     const response = await submitPassphrase(server, authorizeUrl(CLAUDE, pkce().challenge));
     const location = new URL(response.headers.get("Location")!);
@@ -264,7 +287,7 @@ describe("signing in", () => {
   });
 
   test("a wrong passphrase shows the page again, and five in a row pause sign-in for 15 minutes", async () => {
-    const server = await backroom();
+    const server = await backrooms();
     const url = authorizeUrl(CLAUDE, pkce().challenge);
 
     const wrong = await submitPassphrase(server, url, "wrong");
@@ -281,7 +304,7 @@ describe("signing in", () => {
   });
 
   test("wrong passphrases sent at the same time still count one after another", async () => {
-    const server = await backroom();
+    const server = await backrooms();
     const url = authorizeUrl(CLAUDE, pkce().challenge);
 
     const guesses = await Promise.all(Array.from({ length: 20 }, () => submitPassphrase(server, url, "wrong")));
@@ -292,7 +315,7 @@ describe("signing in", () => {
   });
 
   test("only the 100 most recent sign-in pages stay open", async () => {
-    const server = await backroom();
+    const server = await backrooms();
     const url = authorizeUrl(CLAUDE, pkce().challenge);
     const first = /name="request" value="([^"]+)"/.exec(await (await server.request(url)).text())![1]!;
 
@@ -307,7 +330,7 @@ describe("signing in", () => {
   });
 
   test("a sign-in page left open for more than 10 minutes expires", async () => {
-    const server = await backroom();
+    const server = await backrooms();
     const pageResponse = await server.request(authorizeUrl(CLAUDE, pkce().challenge));
     const requestId = /name="request" value="([^"]+)"/.exec(await pageResponse.text())![1]!;
 
@@ -324,7 +347,7 @@ describe("signing in", () => {
 
 describe("authorization requests that are refused", () => {
   test("clients from other origins, without a metadata URL, or whose metadata is missing get an error page", async () => {
-    const server = await backroom();
+    const server = await backrooms();
     const challenge = pkce().challenge;
 
     const refusals = await Promise.all(
@@ -346,7 +369,7 @@ describe("authorization requests that are refused", () => {
   });
 
   test("a metadata document that names another client is refused", async () => {
-    const server = await backroom({
+    const server = await backrooms({
       documents: { [CLAUDE.clientId]: { client_id: "https://claude.ai/other", redirect_uris: [CLAUDE.redirectUri] } },
     });
 
@@ -357,7 +380,7 @@ describe("authorization requests that are refused", () => {
   });
 
   test("a redirect URI the client did not register gets an error page, not a redirect", async () => {
-    const server = await backroom();
+    const server = await backrooms();
 
     const responses = await Promise.all(
       [
@@ -377,7 +400,7 @@ describe("authorization requests that are refused", () => {
   });
 
   test("a request without S256 PKCE, for another resource or another response type is sent back with an error", async () => {
-    const server = await backroom();
+    const server = await backrooms();
     const challenge = pkce().challenge;
 
     const cases = {
@@ -404,7 +427,7 @@ describe("authorization requests that are refused", () => {
 });
 
 describe("tokens", () => {
-  async function code(server: Backroom, client: Client = CLAUDE) {
+  async function code(server: Backrooms, client: Client = CLAUDE) {
     const { verifier, challenge } = pkce();
     const location = new URL(
       (await submitPassphrase(server, authorizeUrl(client, challenge))).headers.get("Location")!,
@@ -412,7 +435,7 @@ describe("tokens", () => {
     return { code: location.searchParams.get("code")!, verifier };
   }
 
-  function exchange(server: Backroom, code: string, verifier: string, overrides: Record<string, string> = {}) {
+  function exchange(server: Backrooms, code: string, verifier: string, overrides: Record<string, string> = {}) {
     return tokenRequest(server, {
       grant_type: "authorization_code",
       code,
@@ -425,7 +448,7 @@ describe("tokens", () => {
   }
 
   test("a code is only exchanged with its PKCE verifier, client, redirect URI and resource", async () => {
-    const server = await backroom();
+    const server = await backrooms();
 
     const results: Record<string, unknown> = {};
     const cases: Record<string, Record<string, string>> = {
@@ -448,7 +471,7 @@ describe("tokens", () => {
   });
 
   test("a code expires after a minute", async () => {
-    const server = await backroom();
+    const server = await backrooms();
     const { code: issued, verifier } = await code(server);
 
     server.advance(60_000);
@@ -459,7 +482,7 @@ describe("tokens", () => {
   });
 
   test("a code used twice is refused and revokes the tokens of its first use", async () => {
-    const server = await backroom();
+    const server = await backrooms();
     const { code: issued, verifier } = await code(server);
     const first = (await (await exchange(server, issued, verifier)).json()) as { access_token: string };
 
@@ -470,7 +493,7 @@ describe("tokens", () => {
   });
 
   test("an access token expires after an hour, and a refresh token gives new tokens and stops working", async () => {
-    const server = await backroom();
+    const server = await backrooms();
     const tokens = await signIn(server);
 
     server.advance(60 * 60_000);
@@ -490,7 +513,7 @@ describe("tokens", () => {
   });
 
   test("a refresh token used a second time ends the whole sign-in, since it must have been copied", async () => {
-    const server = await backroom();
+    const server = await backrooms();
     const tokens = await signIn(server);
     const refresh = { grant_type: "refresh_token", refresh_token: tokens.refresh_token, client_id: CLAUDE.clientId };
     const next = (await (await tokenRequest(server, refresh)).json()) as {
@@ -507,7 +530,7 @@ describe("tokens", () => {
   });
 
   test("a refresh token expires after 30 days without use", async () => {
-    const server = await backroom();
+    const server = await backrooms();
     const tokens = await signIn(server);
 
     server.advance(30 * 24 * 60 * 60_000);
@@ -521,7 +544,7 @@ describe("tokens", () => {
   });
 
   test("other grant types, unknown tokens and malformed bearer headers are refused", async () => {
-    const server = await backroom();
+    const server = await backrooms();
     await signIn(server);
 
     const grant = await tokenRequest(server, { grant_type: "client_credentials" });
@@ -534,7 +557,7 @@ describe("tokens", () => {
   });
 
   test("the store keeps only hashes of the secrets it issues", async () => {
-    const server = await backroom();
+    const server = await backrooms();
     const tokens = await signIn(server);
 
     const dump = JSON.stringify(
@@ -548,7 +571,7 @@ describe("tokens", () => {
   });
 
   test("auth:revoke ends every sign-in", async () => {
-    const server = await backroom();
+    const server = await backrooms();
     const tokens = await signIn(server);
 
     server.store.revokeAll();

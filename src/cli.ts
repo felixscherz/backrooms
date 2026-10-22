@@ -1,5 +1,5 @@
 import { Engine, type FileRef, type FileTarget, type OutlineHeading, type TagCount, type WriteResult } from "./engine";
-import { BackroomError } from "./errors";
+import { BackroomsError } from "./errors";
 import { propertyValueTypes, type PropertyValueType } from "./frontmatter";
 import { stringify as stringifyYaml } from "yaml";
 import type { JsonValue } from "./note";
@@ -42,13 +42,13 @@ type Command = {
   run(engine: Engine, args: Args): Promise<string>;
 };
 
-/** Obsidian CLI commands that backroom deliberately does not implement, with the reason shown to the caller. */
+/** Obsidian CLI commands that backrooms deliberately does not implement, with the reason shown to the caller. */
 const UNSUPPORTED: Record<string, string> = {
-  open: "backroom has no app to open files in.",
-  command: "backroom cannot run Obsidian commands or plugins, such as the Linter.",
-  "search:open": "backroom has no search view.",
-  "tab:open": "backroom has no tabs.",
-  random: "backroom has no app to open files in.",
+  open: "backrooms has no app to open files in.",
+  command: "backrooms cannot run Obsidian commands or plugins, such as the Linter.",
+  "search:open": "backrooms has no search view.",
+  "tab:open": "backrooms has no tabs.",
+  random: "backrooms has no app to open files in.",
 };
 
 const commands: Record<string, Command> = {
@@ -122,7 +122,7 @@ const commands: Record<string, Command> = {
       const name = args.get("name");
       if (name !== undefined) {
         const entry = names.find((candidate) => candidate.name === name);
-        if (!entry) throw new BackroomError("not_found", `Property "${name}" not found.`);
+        if (!entry) throw new BackroomsError("not_found", `Property "${name}" not found.`);
         return String(entry.count);
       }
       if (args.flag("total")) return String(names.length);
@@ -152,7 +152,7 @@ const commands: Record<string, Command> = {
     run: async (engine, args) => {
       const type = args.get("type");
       if (type !== undefined && !propertyValueTypes.includes(type as PropertyValueType)) {
-        throw new BackroomError(
+        throw new BackroomsError(
           "invalid_argument",
           `Invalid type "${type}". Use one of ${propertyValueTypes.join(", ")}.`,
         );
@@ -348,7 +348,7 @@ const commands: Record<string, Command> = {
       const info = await engine.info();
       const key = args.get("info");
       if (key !== undefined) {
-        if (!(key in info)) throw new BackroomError("invalid_argument", `Unknown info "${key}".`);
+        if (!(key in info)) throw new BackroomsError("invalid_argument", `Unknown info "${key}".`);
         return String(info[key as keyof typeof info]);
       }
       return tsv(Object.entries(info));
@@ -361,9 +361,9 @@ const commands: Record<string, Command> = {
       const path = args.get("path");
       const name = args.get("name");
       if (path === undefined && name === undefined)
-        throw new BackroomError("invalid_argument", "Missing required parameter: path or name.");
+        throw new BackroomsError("invalid_argument", "Missing required parameter: path or name.");
       if (args.get("template") !== undefined)
-        throw new BackroomError("unsupported", "Templates are not supported by backroom.");
+        throw new BackroomsError("unsupported", "Templates are not supported by backrooms.");
       const target: FileTarget = path !== undefined ? { path } : { name: name! };
       const result = await engine.create({
         target,
@@ -395,7 +395,7 @@ const commands: Record<string, Command> = {
     },
   },
   edit: {
-    summary: "Replace an exact piece of text in a file (backroom only)",
+    summary: "Replace an exact piece of text in a file (backrooms only)",
     params: ["file=<name>", "path=<path>", "old=<text>", "new=<text>", "all", "version=<version>"],
     run: async (engine, args) => {
       const oldText = args.content("old") ?? args.required("old");
@@ -410,9 +410,9 @@ const commands: Record<string, Command> = {
     params: ["file=<name>", "path=<path>", "version=<version>"],
     run: async (engine, args) => {
       if (args.flag("permanent")) {
-        throw new BackroomError(
+        throw new BackroomsError(
           "unsupported",
-          "backroom never deletes permanently. Files go to .trash and stay in git history.",
+          "backrooms never deletes permanently. Files go to .trash and stay in git history.",
         );
       }
       return reported(await engine.delete(args.ref(), { version: args.get("version") }));
@@ -429,26 +429,26 @@ const commands: Record<string, Command> = {
     run: async (engine, args) => reported(await engine.move(args.ref(), args.required("to"))),
   },
   "git:status": {
-    summary: "Show the git status of the vault and whether sync is running (backroom only)",
+    summary: "Show the git status of the vault and whether sync is running (backrooms only)",
     params: [],
     run: async (engine) => engine.requireGit().status(),
   },
   "git:log": {
-    summary: "List recent commits, optionally for one file (backroom only)",
+    summary: "List recent commits, optionally for one file (backrooms only)",
     params: ["limit=<n>", "path=<path>"],
     run: async (engine, args) => {
       const limit = Number(args.get("limit") ?? "20");
-      if (!Number.isInteger(limit) || limit < 1) throw new BackroomError("invalid_argument", "Invalid limit.");
+      if (!Number.isInteger(limit) || limit < 1) throw new BackroomsError("invalid_argument", "Invalid limit.");
       return engine.requireGit().log({ limit, path: args.get("path") });
     },
   },
   "git:show": {
-    summary: "Show what a commit changed (backroom only)",
+    summary: "Show what a commit changed (backrooms only)",
     params: ["commit=<id>"],
     run: async (engine, args) => engine.requireGit().show(args.required("commit")),
   },
   "git:revert": {
-    summary: "Undo a commit backroom made, as a new commit (backroom only)",
+    summary: "Undo a commit backrooms made, as a new commit (backrooms only)",
     params: ["commit=<id>"],
     run: async (engine, args) => reported(await engine.revert(args.required("commit"))),
   },
@@ -489,7 +489,7 @@ async function search(engine: Engine, args: Args) {
   const limit = args.get("limit");
   const parsedLimit = limit === undefined ? undefined : Number(limit);
   if (parsedLimit !== undefined && (!Number.isInteger(parsedLimit) || parsedLimit < 1)) {
-    throw new BackroomError("invalid_argument", `Invalid limit "${limit}".`);
+    throw new BackroomsError("invalid_argument", `Invalid limit "${limit}".`);
   }
   return engine.search(args.required("query"), {
     folder: args.get("path"),
@@ -506,17 +506,17 @@ export function helpText(): string {
     "",
   ]);
   return lines([
-    "backroom - a headless subset of the Obsidian CLI",
+    "backrooms - a headless subset of the Obsidian CLI",
     "",
-    "Usage: backroom <command> [key=value ...] [flag ...]",
-    "       backroom mcp                 Run the MCP server on stdio",
-    "       backroom serve               Run the MCP server over HTTP with OAuth sign-in (see README)",
-    "       backroom auth:hash           Print the hash of a passphrase read from stdin",
-    "       backroom auth:revoke         End every OAuth sign-in",
+    "Usage: backrooms <command> [key=value ...] [flag ...]",
+    "       backrooms mcp                 Run the MCP server on stdio",
+    "       backrooms serve               Run the MCP server over HTTP with OAuth sign-in (see README)",
+    "       backrooms auth:hash           Print the hash of a passphrase read from stdin",
+    "       backrooms auth:revoke         End every OAuth sign-in",
     "",
-    "The vault is the folder in BACKROOM_VAULT, or the nearest folder above the current one that has a .obsidian",
+    "The vault is the folder in BACKROOMS_VAULT, or the nearest folder above the current one that has a .obsidian",
     "folder. The vault= parameter is accepted and ignored. Use \\n and \\t for newline and tab in content values.",
-    "BACKROOM_GIT=commit records every write as a git commit, BACKROOM_GIT=sync also pulls and pushes.",
+    "BACKROOMS_GIT=commit records every write as a git commit, BACKROOMS_GIT=sync also pulls and pushes.",
     "",
     "Commands:",
     ...body,
@@ -542,20 +542,20 @@ export async function runCli(
 ): Promise<CliResult> {
   const { command } = invocation;
   if (command === "help" || command === "--help" || command === "-h") return { output: helpText(), exitCode: 0 };
-  if (command === "version" || command === "--version") return { output: "backroom 0.1.0", exitCode: 0 };
+  if (command === "version" || command === "--version") return { output: "backrooms 0.1.0", exitCode: 0 };
   try {
     if (command in UNSUPPORTED) {
-      throw new BackroomError("unsupported", `Command "${command}" is not supported: ${UNSUPPORTED[command]}`);
+      throw new BackroomsError("unsupported", `Command "${command}" is not supported: ${UNSUPPORTED[command]}`);
     }
     const handler = commands[command];
     if (!handler)
-      throw new BackroomError(
+      throw new BackroomsError(
         "unsupported",
-        `Command "${command}" is not supported by backroom. Run "backroom help" for the list.`,
+        `Command "${command}" is not supported by backrooms. Run "backrooms help" for the list.`,
       );
     return { output: await handler.run(engine, argsOf(invocation, options)), exitCode: 0 };
   } catch (error) {
-    if (error instanceof BackroomError) return { output: `Error: ${error.message}`, exitCode: 1 };
+    if (error instanceof BackroomsError) return { output: `Error: ${error.message}`, exitCode: 1 };
     throw error;
   }
 }
@@ -565,7 +565,7 @@ function argsOf({ params, flags }: Invocation, options: RunOptions): Args {
   const required = (name: string) => {
     const value = params.get(name);
     if (value === undefined)
-      throw new BackroomError("invalid_argument", `Missing required parameter: ${name}=<value>.`);
+      throw new BackroomsError("invalid_argument", `Missing required parameter: ${name}=<value>.`);
     return value;
   };
   return {
@@ -581,13 +581,13 @@ function argsOf({ params, flags }: Invocation, options: RunOptions): Args {
       const format = params.get("format");
       if (format === undefined) return fallback;
       if (!(allowed as readonly string[]).includes(format)) {
-        throw new BackroomError("invalid_argument", `Invalid format "${format}". Use one of ${allowed.join(", ")}.`);
+        throw new BackroomsError("invalid_argument", `Invalid format "${format}". Use one of ${allowed.join(", ")}.`);
       }
       return format as (typeof allowed)[number];
     },
     ref: () => {
       const ref = refOf(params);
-      if (!ref) throw new BackroomError("invalid_argument", "Missing required parameter: file=<name> or path=<path>.");
+      if (!ref) throw new BackroomsError("invalid_argument", "Missing required parameter: file=<name> or path=<path>.");
       return ref;
     },
     optionalRef: () => refOf(params),

@@ -20,8 +20,8 @@ export type GitRemote = {
 };
 
 export async function gitRemote(vaultRoot: string): Promise<GitRemote> {
-  const remote = await mkdtemp(join(tmpdir(), "backroom-remote-"));
-  const other = await mkdtemp(join(tmpdir(), "backroom-other-"));
+  const remote = await mkdtemp(join(tmpdir(), "backrooms-remote-"));
+  const other = await mkdtemp(join(tmpdir(), "backrooms-other-"));
   await git(remote, "init", "--quiet", "--bare");
   await git(vaultRoot, "remote", "add", "origin", remote);
   await git(vaultRoot, "push", "--quiet", "-u", "origin", "HEAD");

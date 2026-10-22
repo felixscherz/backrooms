@@ -1,7 +1,7 @@
 /**
  * Records what the Obsidian CLI answers to every command in `commands.txt`, and what every write in `writes.txt`
  * does to the vault. Needs the Obsidian app running with test-vault open as a vault, and writes everything to
- * `obsidian.json`, which the compatibility test replays against backroom. After each write, the notes of test-vault
+ * `obsidian.json`, which the compatibility test replays against backrooms. After each write, the notes of test-vault
  * are reset to their committed state with git, so uncommitted changes to them are lost.
  */
 import { writeFileSync } from "node:fs";

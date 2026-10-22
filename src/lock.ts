@@ -3,10 +3,10 @@ import { realpathSync, statSync } from "node:fs";
 import { readFile, stat, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { BackroomError } from "./errors";
+import { BackroomsError } from "./errors";
 
 /**
- * A lock that one writer at a time holds while it changes a vault, so writes from several backroom processes, such
+ * A lock that one writer at a time holds while it changes a vault, so writes from several backrooms processes, such
  * as the MCP server and a CLI run, never interleave. Without it, a write could land between another write's version
  * check and its rename, and be overwritten without either caller noticing.
  *
@@ -26,9 +26,9 @@ export class VaultLock {
    */
   static of(root: string): VaultLock {
     const git = join(root, ".git");
-    if (statSync(git, { throwIfNoEntry: false })?.isDirectory()) return new VaultLock(join(git, "backroom.lock"));
+    if (statSync(git, { throwIfNoEntry: false })?.isDirectory()) return new VaultLock(join(git, "backrooms.lock"));
     const id = createHash("sha256").update(realpathSync(root)).digest("hex").slice(0, 16);
-    return new VaultLock(join(tmpdir(), `backroom-${id}.lock`));
+    return new VaultLock(join(tmpdir(), `backrooms-${id}.lock`));
   }
 
   async hold<T>(step: () => Promise<T>): Promise<T> {
@@ -51,9 +51,9 @@ export class VaultLock {
       }
       if (await this.takeOverAbandoned()) continue;
       if (Date.now() > deadline) {
-        throw new BackroomError(
+        throw new BackroomsError(
           "busy",
-          `Another backroom process has been writing to the vault for over ${this.timeoutMs / 1000} seconds. Retry later, or remove ${this.path} if no backroom process is running.`,
+          `Another backrooms process has been writing to the vault for over ${this.timeoutMs / 1000} seconds. Retry later, or remove ${this.path} if no backrooms process is running.`,
         );
       }
       await Bun.sleep(wait);

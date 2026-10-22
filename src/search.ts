@@ -1,4 +1,4 @@
-import { BackroomError } from "./errors";
+import { BackroomsError } from "./errors";
 import type { JsonValue, Note } from "./note";
 import { basename } from "./paths";
 
@@ -44,7 +44,7 @@ export type FileMatch = {
 export function parseQuery(input: string, options: SearchOptions): Query {
   const parser = new Parser(input, options);
   const query = parser.parseAll();
-  if (!query) throw new BackroomError("invalid_argument", "Search query is empty.");
+  if (!query) throw new BackroomsError("invalid_argument", "Search query is empty.");
   return query;
 }
 
@@ -367,7 +367,7 @@ class Parser {
     }
     if (UNITS.includes(name)) return { kind: "within", unit: name as Unit, part: this.parseOperand() };
     if (FIELDS.includes(name)) return { kind: "field", field: name as TextField, part: this.parseOperand() };
-    throw new BackroomError("invalid_argument", `Operator "${name}" not recognized`);
+    throw new BackroomsError("invalid_argument", `Operator "${name}" not recognized`);
   }
 
   /** The value after an operator: a group, a phrase, a regex or a word. */
@@ -402,7 +402,7 @@ class Parser {
     if (colon === -1) return { kind: "property", name: inner.trim(), value: null };
     const valueText = untilColon(inner.slice(colon + 1)).trim();
     if (valueText.includes("[")) {
-      throw new BackroomError("invalid_argument", "Property cannot be nested within a property.");
+      throw new BackroomsError("invalid_argument", "Property cannot be nested within a property.");
     }
     const value = valueText === "" ? null : new Parser(valueText, this.options, true).parseAll();
     return { kind: "property", name: inner.slice(0, colon).trim(), value };
@@ -415,7 +415,7 @@ class Parser {
     if (char === "-" || char === "/" || char === "(") {
       const name = operator === ">" ? "greaterthan" : "lessthan";
       const operand = char === "-" ? "a negation" : char === "/" ? "a regular expression" : "a group";
-      throw new BackroomError("invalid_argument", `Invalid search query: ${name} cannot be applied to ${operand}.`);
+      throw new BackroomsError("invalid_argument", `Invalid search query: ${name} cannot be applied to ${operand}.`);
     }
     if (char === '"') return { kind: "compare", operator, text: this.parseQuoted() };
     return { kind: "compare", operator, text: this.parseWord() };
@@ -446,7 +446,7 @@ class Parser {
       this.position = end + 1;
       return { kind: "regex", pattern };
     } catch (error) {
-      throw new BackroomError("invalid_argument", `Invalid regular expression /${source}/.`);
+      throw new BackroomsError("invalid_argument", `Invalid regular expression /${source}/.`);
     }
   }
 
@@ -481,6 +481,6 @@ class Parser {
   }
 
   private fail(message: string): never {
-    throw new BackroomError("invalid_argument", `Invalid search query: ${message}.`);
+    throw new BackroomsError("invalid_argument", `Invalid search query: ${message}.`);
   }
 }

@@ -1,5 +1,5 @@
 import { isMap, isScalar, parseDocument, stringify, type Pair } from "yaml";
-import { BackroomError } from "./errors";
+import { BackroomsError } from "./errors";
 import { parseNote, type Span } from "./note";
 import type { PropertyType } from "./vault";
 
@@ -57,8 +57,8 @@ function isValidDate(date: string): boolean {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date;
 }
 
-function invalid(message: string): BackroomError {
-  return new BackroomError("invalid_argument", message);
+function invalid(message: string): BackroomsError {
+  return new BackroomsError("invalid_argument", message);
 }
 
 /** The type a value gets when the caller does not name one: the vault's known type, else the current value's. */
@@ -147,7 +147,7 @@ function editableFrontmatter(text: string): Span | null {
   const frontmatter = parseNote(text).frontmatter;
   if (frontmatter.kind === "none") return null;
   if (frontmatter.kind === "invalid") {
-    throw new BackroomError(
+    throw new BackroomsError(
       "unsafe",
       `The frontmatter cannot be read (${frontmatter.error.split("\n")[0]}), so properties cannot be changed safely.`,
     );

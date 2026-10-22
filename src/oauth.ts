@@ -3,14 +3,14 @@ import type { Clock } from "./clock";
 import { newGrantId, type OAuthStore } from "./oauth-store";
 
 /**
- * backroom's OAuth 2.1 authorization server for the one person who owns the vault (ADR 8). Clients identify
+ * backrooms' OAuth 2.1 authorization server for the one person who owns the vault (ADR 8). Clients identify
  * themselves with a Client ID Metadata Document from an allowed origin, the person signs in with a passphrase, and
- * the tokens it issues are only valid for backroom's MCP endpoint.
+ * the tokens it issues are only valid for backrooms' MCP endpoint.
  */
 export type AuthorizationServerOptions = {
-  /** backroom's public URL, such as `https://backroom.example.com`, which is the issuer. */
+  /** backrooms' public URL, such as `https://backrooms.example.com`, which is the issuer. */
   issuer: string;
-  /** The argon2id hash of the passphrase, as `backroom auth:hash` prints it. */
+  /** The argon2id hash of the passphrase, as `backrooms auth:hash` prints it. */
   passphraseHash: string;
   /** Origins whose Client ID Metadata Documents are accepted, such as `https://claude.ai`. */
   clientOrigins: string[];
@@ -342,7 +342,7 @@ export class AuthorizationServer {
   }
 }
 
-/** Creates the hash of a passphrase that `BACKROOM_PASSPHRASE_HASH` holds. */
+/** Creates the hash of a passphrase that `BACKROOMS_PASSPHRASE_HASH` holds. */
 export function hashPassphrase(passphrase: string): Promise<string> {
   return Bun.password.hash(passphrase, { algorithm: "argon2id" });
 }
@@ -416,7 +416,7 @@ function redirect(uri: string, params: Record<string, string | null>): Response 
 }
 
 /**
- * An HTML page that cannot be framed, runs no script and only submits its form to backroom. Browsers also apply
+ * An HTML page that cannot be framed, runs no script and only submits its form to backrooms. Browsers also apply
  * `form-action` to the redirect that answers the form, so a sign-in page allows the origin of the client's redirect
  * URI, where the redirect with the code goes.
  */
@@ -427,7 +427,7 @@ function page(status: number, html: string, redirectUri?: string): Response {
     headers: {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": "no-store",
-      "Content-Security-Policy": `default-src 'none'; style-src 'unsafe-inline'; form-action ${formAction}; frame-ancestors 'none'`,
+      "Content-Security-Policy": `default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; form-action ${formAction}; frame-ancestors 'none'`,
       "X-Frame-Options": "DENY",
       "Referrer-Policy": "no-referrer",
     },
@@ -444,9 +444,9 @@ input,button{font:inherit;width:100%;box-sizing:border-box;padding:.6rem;margin:
 
 function signInPage(view: { request: string; client: string; redirect: string; error?: string }): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign in to backroom</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><title>Sign in to backrooms</title>
 <style>${STYLE}</style></head><body>
-<h1>Sign in to backroom</h1>
+<h1>Sign in to backrooms</h1>
 <p><strong>${escapeHtml(view.client)}</strong> asks for access to your vault. After you sign in, you are sent back to
 <code>${escapeHtml(view.redirect)}</code>.</p>
 ${view.error ? `<p class="error">${escapeHtml(view.error)}</p>` : ""}
@@ -460,6 +460,6 @@ ${view.error ? `<p class="error">${escapeHtml(view.error)}</p>` : ""}
 
 function errorPage(message: string): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>backroom</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><title>backrooms</title>
 <style>${STYLE}</style></head><body><h1>Cannot sign in</h1><p class="error">${escapeHtml(message)}</p></body></html>`;
 }

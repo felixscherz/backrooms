@@ -1,7 +1,7 @@
 # Compatibility with the Obsidian CLI
 
-What backroom implements, and how it is checked against Obsidian. ADR 1 makes Obsidian's behavior the spec, so the
-check is automated: backroom has to answer like the real Obsidian CLI on a test vault.
+What backrooms implements, and how it is checked against Obsidian. ADR 1 makes Obsidian's behavior the spec, so the
+check is automated: backrooms has to answer like the real Obsidian CLI on a test vault.
 
 ## How it is checked
 
@@ -14,7 +14,7 @@ for word counting and sort order. It is opened in Obsidian as the vault `test-va
 - `bun compat/record.ts` runs each of them through the Obsidian CLI, stores the answers and the files each write
   changed in [compat/obsidian.json](../compat/obsidian.json), and resets the notes of test-vault with git after
   each write. It needs Obsidian running with test-vault open, and reloads the vault first.
-- [compat/compat.test.ts](../compat/compat.test.ts) runs the same commands through backroom, each write on a copy of
+- [compat/compat.test.ts](../compat/compat.test.ts) runs the same commands through backrooms, each write on a copy of
   the vault, and expects the same output and the same file changes. It is part of `bun test`.
 
 The recording was made with Obsidian 1.13.7 (installer 1.12.7). After an Obsidian update, record again and the test
@@ -52,14 +52,14 @@ plugin itself.
   command lints with the same check of ignored folders and files. Before each write it checks the notes out afresh,
   so their file system creation date is the time of the run. Timestamps from the run are stored as `<now>`, older
   ones as they are, in [compat/linter.json](../compat/linter.json).
-- [compat/linter.test.ts](../compat/linter.test.ts) replays the writes through backroom on a fresh copy of the vault
+- [compat/linter.test.ts](../compat/linter.test.ts) replays the writes through backrooms on a fresh copy of the vault
   and expects the same files, with its own recent timestamps as `<now>`.
 
 The recording was made with the Linter 1.34.2.
 
 ## How Obsidian behaves
 
-Rules backroom follows that were found by comparing with Obsidian, some of them surprising:
+Rules backrooms follows that were found by comparing with Obsidian, some of them surprising:
 
 - **Sorting.** Listings sort ignoring case and accents, with numbers compared by value (`Note 2` before `Note 10`).
   Outgoing links (`links`) sort by code units instead, so uppercase comes first.
@@ -90,7 +90,7 @@ Rules backroom follows that were found by comparing with Obsidian, some of them 
 
 ## Deliberate differences
 
-| Behavior | Obsidian | backroom | Why |
+| Behavior | Obsidian | backrooms | Why |
 | --- | --- | --- | --- |
 | Changing a property | Rewrites the whole frontmatter in its own format | Changes only the property's text | ADR 2 |
 | `property:set` without `type=` | Writes the value as text, `rating: "5"` | Uses the type from `types.json`, else the current value's | Keeps number and checkbox properties intact |
@@ -101,7 +101,7 @@ Rules backroom follows that were found by comparing with Obsidian, some of them 
 | Names that sort equal, like `Repository` and `repository` | Index order | Order found | Same |
 | Errors | Exit code 0 | Exit code 1 | Lets scripts notice errors |
 | Creation date of an existing note without a valid `date_created` | The file system's creation date | The date git first saw the note, else the file system's | A clone's files are all created when it is cloned |
-| Saving a note whose `date_modified` is less than 5 seconds old, with the file system as its source of truth | The Linter keeps it | Set to now | The Linter compares with the file's modification time, which a write through backroom sets to now |
+| Saving a note whose `date_modified` is less than 5 seconds old, with the file system as its source of truth | The Linter keeps it | Set to now | The Linter compares with the file's modification time, which a write through backrooms sets to now |
 | `>` or `<` before a negation, regex or group | Names its internal matcher, `matcher Excluding:` | Names the kind of term | The matcher names are internal to Obsidian |
 | `path=` with a decomposed name | File not found | Found | Paths are compared in NFC |
 

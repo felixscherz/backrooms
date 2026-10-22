@@ -28,6 +28,6 @@ The engine is a library. Interfaces (ADR 5) are built on top of it.
 - Every Obsidian behavior the project supports has to be reimplemented and kept in line with Obsidian, which ADR 1's
   compatibility tests cover.
 - Community plugins do not run, because they need Obsidian's API. ADR 4 keeps the option open to support some of them
-  later. Until then, plugin features are only available where backroom reimplements them (ADR 7).
+  later. Until then, plugin features are only available where backrooms reimplements them (ADR 7).
 - Reimplementing behavior from documentation and observation is allowed. Copying code from Obsidian's bundled app is
   not.

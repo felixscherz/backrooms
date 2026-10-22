@@ -1,4 +1,4 @@
-import { BackroomError, fileNotFound } from "./errors";
+import { BackroomsError, fileNotFound } from "./errors";
 import { parseWikilinkInner, type Link, type Note, type Span } from "./note";
 import {
   basename,
@@ -69,17 +69,18 @@ export function planMove(vault: Vault, from: string, to: string): Change[] {
 
 function checkDestination(vault: Vault, from: string, to: string) {
   if (normalize(to) !== to || to === "" || isHidden(to)) {
-    throw new BackroomError("invalid_argument", `"${to}" is not a valid destination in the vault.`);
+    throw new BackroomsError("invalid_argument", `"${to}" is not a valid destination in the vault.`);
   }
   const nameError = validateFileName(stem(to));
-  if (nameError) throw new BackroomError("invalid_argument", nameError);
+  if (nameError) throw new BackroomsError("invalid_argument", nameError);
   if (extension(from).toLowerCase() !== extension(to).toLowerCase()) {
-    throw new BackroomError("invalid_argument", `Moving "${from}" to "${to}" would change its file extension.`);
+    throw new BackroomsError("invalid_argument", `Moving "${from}" to "${to}" would change its file extension.`);
   }
   const existing = vault.fileIgnoringCase(to);
-  if (existing && existing.path !== from) throw new BackroomError("already_exists", "Destination file already exists!");
+  if (existing && existing.path !== from)
+    throw new BackroomsError("already_exists", "Destination file already exists!");
   const folderClash = vault.folders().find((folder) => folder.toLowerCase() === to.toLowerCase());
-  if (folderClash) throw new BackroomError("already_exists", `A folder "${folderClash}" already exists.`);
+  if (folderClash) throw new BackroomsError("already_exists", `A folder "${folderClash}" already exists.`);
 }
 
 /**
@@ -105,7 +106,7 @@ function linkPathFor(vault: Vault, target: string, source: string, link: Link): 
   candidates.push(withoutExtension(target));
   const path = candidates.find((candidate) => vault.resolve(candidate, source) === target);
   if (path === undefined) {
-    throw new BackroomError("unsafe", `No link from "${source}" can point to "${target}" unambiguously.`);
+    throw new BackroomsError("unsafe", `No link from "${source}" can point to "${target}" unambiguously.`);
   }
   return path;
 }
@@ -170,14 +171,14 @@ function encodePath(path: string, text: string, span: Span, link: Link): string 
  */
 function propertyReplacements(text: string, note: Note, rewrites: Rewrite[]): { span: Span; text: string }[] {
   if (note.frontmatter.kind !== "valid") {
-    throw new BackroomError("unsafe", "Links in invalid frontmatter cannot be updated safely.");
+    throw new BackroomsError("unsafe", "Links in invalid frontmatter cannot be updated safely.");
   }
   const yamlStart = note.frontmatter.yamlSpan.start;
   const yaml = text.slice(yamlStart, note.frontmatter.yamlSpan.end);
   const occurrences = [...yaml.matchAll(/(!?)\[\[([^[\]\n]+?)\]\]/g)];
   const propertyLinks = note.links.filter((link) => link.location.kind === "property");
   const unmatched = () =>
-    new BackroomError(
+    new BackroomsError(
       "unsafe",
       "The links in the frontmatter cannot be matched to properties, so they cannot be updated safely.",
     );
@@ -219,6 +220,6 @@ function verifyLinksKeepTargets(before: Vault, after: Vault, newPath: (path: str
     });
   }
   if (broken.length > 0) {
-    throw new BackroomError("unsafe", `The move would change where these links point: ${broken.join(", ")}.`);
+    throw new BackroomsError("unsafe", `The move would change where these links point: ${broken.join(", ")}.`);
   }
 }

@@ -1,15 +1,15 @@
-import { BackroomError } from "./errors";
+import { BackroomsError } from "./errors";
 import type { WriteResult } from "./engine";
 
 /**
- * How backroom uses git (ADR 6). `off` leaves git alone, `commit` records every write as one commit, `sync` also
+ * How backrooms uses git (ADR 6). `off` leaves git alone, `commit` records every write as one commit, `sync` also
  * pulls before each write and pushes after each commit.
  */
 export type GitMode = "off" | "commit" | "sync";
 
 export type GitResult = { exitCode: number; stdout: string; stderr: string };
 
-/** Runs the git executable. A seam so tests and callers can see exactly what backroom asks git to do. */
+/** Runs the git executable. A seam so tests and callers can see exactly what backrooms asks git to do. */
 export type GitRunner = (cwd: string, args: string[]) => Promise<GitResult>;
 
 export const runGit: GitRunner = async (cwd, args) => {
@@ -22,10 +22,12 @@ export const runGit: GitRunner = async (cwd, args) => {
   return { exitCode, stdout, stderr };
 };
 
-/** The trailer that marks a commit as made by backroom, so revert only touches backroom's own commits. */
-export const OPERATION_TRAILER = "Backroom-Operation";
+/** The trailer that marks a commit as made by backrooms, so revert only touches backrooms' own commits. */
+export const OPERATION_TRAILER = "Backrooms-Operation";
+/** The trailer from before the rename to backrooms, so commits made then can still be reverted. */
+const LEGACY_OPERATION_TRAILER = "Backroom-Operation";
 
-const FALLBACK_IDENTITY = ["-c", "user.name=backroom", "-c", "user.email=backroom@localhost"];
+const FALLBACK_IDENTITY = ["-c", "user.name=backrooms", "-c", "user.email=backrooms@localhost"];
 
 export class Git {
   /** Set when a sync failed in a way a human has to resolve. Writes keep working locally in the meantime. */
@@ -68,7 +70,7 @@ export class Git {
 
     const add = await this.run(this.root, ["add", "-A", "--", ...tracked]);
     if (add.exitCode !== 0) return [`The change was not committed: ${firstLine(add.stderr)}`];
-    const message = `backroom: ${result.summary}\n\n${OPERATION_TRAILER}: ${result.operation}\n`;
+    const message = `backrooms: ${result.summary}\n\n${OPERATION_TRAILER}: ${result.operation}\n`;
     const commit = await this.commit(["commit", "--quiet", "-m", message, "--", ...tracked]);
     if (commit.exitCode !== 0) return [`The change was not committed: ${firstLine(commit.stderr || commit.stdout)}`];
     return this.mode === "sync" ? this.push() : [];
@@ -91,19 +93,19 @@ export class Git {
     return (await this.check(["show", "--stat", "--patch", "--format=fuller", validCommit(commit)])).trimEnd();
   }
 
-  /** Whether a commit was made by backroom, and the files it changed with their state before and after. */
+  /** Whether a commit was made by backrooms, and the files it changed with their state before and after. */
   async commitChanges(commit: string): Promise<CommitChange[]> {
     const sha = validCommit(commit);
     const body = await this.check(["show", "--no-patch", "--format=%B", sha]);
-    if (!new RegExp(`^${OPERATION_TRAILER}: `, "m").test(body)) {
-      throw new BackroomError(
+    if (!new RegExp(`^(${OPERATION_TRAILER}|${LEGACY_OPERATION_TRAILER}): `, "m").test(body)) {
+      throw new BackroomsError(
         "invalid_argument",
-        `Commit ${commit} was not made by backroom, so it cannot be reverted.`,
+        `Commit ${commit} was not made by backrooms, so it cannot be reverted.`,
       );
     }
     const parents = (await this.check(["show", "--no-patch", "--format=%P", sha])).trim().split(/\s+/);
     if (parents.length !== 1 || parents[0] === "") {
-      throw new BackroomError("unsupported", `Commit ${commit} is not a regular commit with one parent.`);
+      throw new BackroomsError("unsupported", `Commit ${commit} is not a regular commit with one parent.`);
     }
     const diff = await this.check(["diff", "--name-status", "--no-renames", "-z", `${sha}^`, sha]);
     const fields = diff.split("\0").filter((field) => field !== "");
@@ -158,7 +160,7 @@ export class Git {
   private async check(args: string[]): Promise<string> {
     const result = await this.run(this.root, args);
     if (result.exitCode !== 0) {
-      throw new BackroomError("invalid_argument", `git ${args[0]} failed: ${firstLine(result.stderr)}`);
+      throw new BackroomsError("invalid_argument", `git ${args[0]} failed: ${firstLine(result.stderr)}`);
     }
     return result.stdout;
   }
@@ -182,7 +184,8 @@ function touchedPaths(result: WriteResult): string[] {
 }
 
 function validCommit(commit: string): string {
-  if (!/^[0-9a-f]{4,40}$/i.test(commit)) throw new BackroomError("invalid_argument", `"${commit}" is not a commit id.`);
+  if (!/^[0-9a-f]{4,40}$/i.test(commit))
+    throw new BackroomsError("invalid_argument", `"${commit}" is not a commit id.`);
   return commit;
 }
 

@@ -1,4 +1,4 @@
-# 8. Remote MCP over HTTP with backroom's own OAuth server
+# 8. Remote MCP over HTTP with backrooms' own OAuth server
 
 - Status: Proposed
 - Date: 2026-10-22
@@ -27,60 +27,60 @@ needs a public HTTPS URL. Claude's requirements for it are in its documentation 
 - A fixed API key in a request header is in beta for a few organizations only, and client certificates are not
   supported, so neither can protect a personal server.
 
-backroom serves one person (vision: no multiple users). The VM runs nginx, which terminates TLS for several
+backrooms serves one person (vision: no multiple users). The VM runs nginx, which terminates TLS for several
 subdomains with a Let's Encrypt certificate and proxies to services behind it.
 
 ## Decision
 
-backroom serves MCP over the streamable HTTP transport and is its own OAuth authorization server, for one user who
+backrooms serves MCP over the streamable HTTP transport and is its own OAuth authorization server, for one user who
 signs in with a passphrase.
 
 ### Transport
 
-- `backroom serve` listens on a local address, by default `127.0.0.1:8484`, and nginx proxies a subdomain to it. TLS
-  ends at nginx. backroom never builds URLs from request headers: its public URL is configured as `BACKROOM_URL`, for
-  example `https://backroom.example.com`.
-- The MCP endpoint is `BACKROOM_URL/mcp`, the same tools as over stdio (ADR 5). The transport runs stateless, since
+- `backrooms serve` listens on a local address, by default `127.0.0.1:8484`, and nginx proxies a subdomain to it. TLS
+  ends at nginx. backrooms never builds URLs from request headers: its public URL is configured as `BACKROOMS_URL`, for
+  example `https://backrooms.example.com`.
+- The MCP endpoint is `BACKROOMS_URL/mcp`, the same tools as over stdio (ADR 5). The transport runs stateless, since
   every tool is one request and one answer, and all requests share one engine, so writes stay serialized (ADR 2) and
-  the pull timer of `sync` mode (ADR 6) runs as in `backroom mcp`.
+  the pull timer of `sync` mode (ADR 6) runs as in `backrooms mcp`.
 
 ### Authorization server
 
-The authorization server is part of backroom, on the same origin. Its issuer is `BACKROOM_URL`, and the resource it
-issues tokens for is `BACKROOM_URL/mcp`.
+The authorization server is part of backrooms, on the same origin. Its issuer is `BACKROOMS_URL`, and the resource it
+issues tokens for is `BACKROOMS_URL/mcp`.
 
 - **Discovery.** `/mcp` answers requests without a valid token with `401` and
-  `WWW-Authenticate: Bearer resource_metadata="BACKROOM_URL/.well-known/oauth-protected-resource/mcp"`. The protected
+  `WWW-Authenticate: Bearer resource_metadata="BACKROOMS_URL/.well-known/oauth-protected-resource/mcp"`. The protected
   resource metadata is served at that path and at `/.well-known/oauth-protected-resource`, the authorization server
   metadata at `/.well-known/oauth-authorization-server`. It advertises the authorization code and refresh token
   grants, `S256`, the `none` authentication method and CIMD. It offers no scopes: a token grants the whole vault.
-- **Clients.** Clients identify themselves with a CIMD. backroom accepts a `client_id` only from a configured list of
+- **Clients.** Clients identify themselves with a CIMD. backrooms accepts a `client_id` only from a configured list of
   origins, by default `https://claude.ai`, which covers the hosted Claude apps and Claude Code. Only those URLs are ever
-  fetched, with a short timeout, a size limit and no redirects, so `/authorize` cannot be used to make backroom request
+  fetched, with a short timeout, a size limit and no redirects, so `/authorize` cannot be used to make backrooms request
   other addresses. The document's `client_id` has to equal its URL, and the `redirect_uri` has to be one of its
   `redirect_uris`, compared exactly, except that the port of a loopback address (`localhost`, `127.0.0.1`, `[::1]`)
   is ignored. There is no DCR endpoint. Another client, such as opencode, is allowed by adding its origin, or by adding
   DCR then.
 - **Sign-in.** `/authorize` checks the request first: a known client, a matching redirect URI, a PKCE `S256`
-  challenge, and `resource` equal to `BACKROOM_URL/mcp`. It then shows a page that names the client by the host of
-  its `client_id` and the host it redirects to, and asks for the passphrase. backroom stores only an argon2id hash of
-  the passphrase, set as `BACKROOM_PASSPHRASE_HASH` and created with `backroom auth:hash`. Failed attempts slow down
+  challenge, and `resource` equal to `BACKROOMS_URL/mcp`. It then shows a page that names the client by the host of
+  its `client_id` and the host it redirects to, and asks for the passphrase. backrooms stores only an argon2id hash of
+  the passphrase, set as `BACKROOMS_PASSPHRASE_HASH` and created with `backrooms auth:hash`. Failed attempts slow down
   further attempts, and after repeated failures sign-in pauses for a while. The page is tied to the pending request
   server-side, so its form cannot be submitted from another site.
-- **Codes and tokens.** After the passphrase is accepted, backroom redirects with a single-use authorization code,
+- **Codes and tokens.** After the passphrase is accepted, backrooms redirects with a single-use authorization code,
   valid for a minute and bound to the client, the redirect URI, the PKCE challenge and the resource, and with `state`
   and `iss` (RFC 9207). The token endpoint takes form-encoded requests and exchanges a code, with its PKCE verifier,
   for an access token valid for an hour and a refresh token valid for 30 days of not being used. Each refresh returns a
   new refresh token and invalidates the old one. Using an invalidated refresh token again revokes every token of that
   sign-in, since it means the token was copied.
-- **Storage.** Tokens are random 256-bit values. backroom stores only their SHA-256 hashes, together with their client,
-  resource and expiry, in a SQLite database in its state folder, `BACKROOM_STATE`, outside the vault. Sign-ins survive
-  restarts, so a deployment does not ask for the passphrase again. `backroom auth:revoke` revokes every token.
+- **Storage.** Tokens are random 256-bit values. backrooms stores only their SHA-256 hashes, together with their client,
+  resource and expiry, in a SQLite database in its state folder, `BACKROOMS_STATE`, outside the vault. Sign-ins survive
+  restarts, so a deployment does not ask for the passphrase again. `backrooms auth:revoke` revokes every token.
 
 ### Alternatives not chosen
 
 - **An external identity provider** (Auth0, WorkOS, Keycloak) would bring a proven OAuth implementation, but adds a
-  service to run or depend on for one user, and must support CIMD or DCR together with resource indicators. backroom
+  service to run or depend on for one user, and must support CIMD or DCR together with resource indicators. backrooms
   could switch to one later by validating its tokens instead of issuing its own.
 - **Sign-in through GitHub** would avoid storing a passphrase, but makes signing in depend on GitHub and needs a
   registered OAuth app.
@@ -89,9 +89,9 @@ issues tokens for is `BACKROOM_URL/mcp`.
 
 ## Consequences
 
-- Connecting from the Claude app is: add a custom connector with `BACKROOM_URL/mcp`, then enter the passphrase once
+- Connecting from the Claude app is: add a custom connector with `BACKROOMS_URL/mcp`, then enter the passphrase once
   per 30 days of not using it, or after `auth:revoke`.
-- backroom carries security-critical code: the authorization and token endpoints, the CIMD fetch, and token storage.
+- backrooms carries security-critical code: the authorization and token endpoints, the CIMD fetch, and token storage.
   Each requirement above needs a test, including the refusals: unknown clients, mismatched redirect URIs, a wrong
   PKCE verifier or resource, reused codes, and reused refresh tokens.
 - The passphrase is the one secret that protects the vault, so it has to be long and random, and the sign-in page must

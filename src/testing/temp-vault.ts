@@ -32,7 +32,7 @@ export async function tempVault(
   settings: Record<string, unknown> = {},
   options: TempVaultOptions = {},
 ): Promise<TempVault> {
-  const root = await mkdtemp(join(tmpdir(), "backroom-test-"));
+  const root = await mkdtemp(join(tmpdir(), "backrooms-test-"));
   await mkdir(join(root, ".obsidian"));
   await writeFile(join(root, ".obsidian", "app.json"), JSON.stringify(settings));
   const write = async (path: string, text: string) => {
@@ -60,7 +60,7 @@ export async function tempVault(
     run,
     ok: async (...argv) => {
       const result = await run(...argv);
-      if (result.exitCode !== 0) throw new Error(`backroom ${argv.join(" ")} failed: ${result.output}`);
+      if (result.exitCode !== 0) throw new Error(`backrooms ${argv.join(" ")} failed: ${result.output}`);
       return result.output;
     },
     read: (path) => readFile(join(root, path), "utf8"),

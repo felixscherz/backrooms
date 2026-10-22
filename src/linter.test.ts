@@ -186,7 +186,7 @@ describe("the Linter's yaml-timestamp rule", () => {
     expect(await vault.read("Note.md")).toBe("Body");
   });
 
-  test("writes fail when the Linter's settings ask for something backroom cannot do like the Linter", async () => {
+  test("writes fail when the Linter's settings ask for something backrooms cannot do like the Linter", async () => {
     const format = await vaultWith({}, { timestamps: { format: "MMMM Do YYYY" } });
     const truth = await vaultWith({}, { timestamps: { "date-created-source-of-truth": "frontmatter" } });
 

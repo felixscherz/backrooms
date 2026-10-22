@@ -1,11 +1,11 @@
 import type { Clock } from "./clock";
 import { DateFormat } from "./date-format";
-import { BackroomError } from "./errors";
+import { BackroomsError } from "./errors";
 import { parseNote } from "./note";
 import type { Plugin, PluginDefinition, SavedNote } from "./plugins";
 
 /**
- * The Linter community plugin (`obsidian-linter`), as far as backroom reimplements it. Only the `yaml-timestamp`
+ * The Linter community plugin (`obsidian-linter`), as far as backrooms reimplements it. Only the `yaml-timestamp`
  * rule is supported: it records when a note was created and last modified in its frontmatter.
  */
 export const linter: PluginDefinition = {
@@ -13,7 +13,7 @@ export const linter: PluginDefinition = {
   load(data) {
     const general = generalSettings(data);
     const config = ruleConfig(data, "yaml-timestamp");
-    // A write through backroom stands for editing a note in Obsidian. The Linter changes a note after an edit when
+    // A write through backrooms stands for editing a note in Obsidian. The Linter changes a note after an edit when
     // it lints on save, when the note is left, or, for this rule alone, when the note's content changes.
     const runs =
       general.lintOnSave ||
@@ -135,12 +135,12 @@ function timestampSettings(config: Record<string, unknown> | null): TimestampSet
   const format = DateFormat.parse(pattern);
   if (!format) {
     throw unsupported(
-      `its date format "${pattern}" uses tokens backroom does not support. backroom supports numeric tokens such as YYYY-MM-DD HH:mm:ss`,
+      `its date format "${pattern}" uses tokens backrooms does not support. backrooms supports numeric tokens such as YYYY-MM-DD HH:mm:ss`,
     );
   }
   const createdTruth = option("date-created-source-of-truth", "file system");
   if (option("date-created", true) && createdTruth !== "file system") {
-    throw unsupported(`it takes the creation date from the ${createdTruth}. backroom only supports the file system`);
+    throw unsupported(`it takes the creation date from the ${createdTruth}. backrooms only supports the file system`);
   }
   return {
     createdKey: option("date-created", true) ? option("date-created-key", "date created") : null,
@@ -171,9 +171,9 @@ function fileToIgnore(match: string, flags: string): RegExp {
   try {
     return new RegExp(match, flags);
   } catch {
-    throw new BackroomError(
+    throw new BackroomsError(
       "unsafe",
-      `backroom cannot tell which notes the Linter ignores, because "${match}" with flags "${flags}" in its files to ignore is not a valid regular expression.`,
+      `backrooms cannot tell which notes the Linter ignores, because "${match}" with flags "${flags}" in its files to ignore is not a valid regular expression.`,
     );
   }
 }
@@ -184,10 +184,10 @@ function normalizePath(path: string): string {
   return (normalized === "" ? "/" : normalized).replace(/\u00A0|\u202F/g, " ").normalize("NFC");
 }
 
-function unsupported(reason: string): BackroomError {
-  return new BackroomError(
+function unsupported(reason: string): BackroomsError {
+  return new BackroomsError(
     "unsafe",
-    `backroom cannot save notes the way the Linter's yaml-timestamp rule is set up, because ${reason}.`,
+    `backrooms cannot save notes the way the Linter's yaml-timestamp rule is set up, because ${reason}.`,
   );
 }
 

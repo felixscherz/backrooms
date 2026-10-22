@@ -1,5 +1,5 @@
 import { systemClock, type Clock } from "./clock";
-import { BackroomError, fileNotFound } from "./errors";
+import { BackroomsError, fileNotFound } from "./errors";
 import {
   BUILT_IN_PROPERTIES,
   inferPropertyType,
@@ -142,7 +142,7 @@ export class Engine {
     const vault = await this.vault();
     const path = resolveMarkdown(vault, ref);
     const properties = vault.note(path).properties;
-    if (!(name in properties)) throw new BackroomError("not_found", `Property "${name}" not found.`);
+    if (!(name in properties)) throw new BackroomsError("not_found", `Property "${name}" not found.`);
     return properties[name]!;
   }
 
@@ -175,7 +175,7 @@ export class Engine {
     const vault = await this.vault();
     const wanted = name.replace(/^#/, "");
     const entry = vaultTags(vault).find((candidate) => candidate.tag === wanted);
-    if (!entry) throw new BackroomError("not_found", `Tag "#${wanted}" not found.`);
+    if (!entry) throw new BackroomsError("not_found", `Tag "#${wanted}" not found.`);
     const files = vault
       .markdownPaths()
       .filter((path) => vault.note(path).tags.some((tag) => tag.toLowerCase() === wanted.toLowerCase()));
@@ -338,7 +338,7 @@ export class Engine {
       }
       if (existing) {
         if (options.version === undefined) {
-          throw new BackroomError(
+          throw new BackroomsError(
             "invalid_argument",
             `Overwriting "${existing.path}" needs the version it replaces (version=).`,
           );
@@ -396,12 +396,12 @@ export class Engine {
     newText: string,
     options: { all?: boolean; version?: string } = {},
   ): Promise<WriteResult> {
-    if (oldText === "") throw new BackroomError("invalid_argument", "The text to replace (old=) must not be empty.");
+    if (oldText === "") throw new BackroomsError("invalid_argument", "The text to replace (old=) must not be empty.");
     return this.modify(ref, "edit", options.version, (text, path) => {
       const count = text.split(oldText).length - 1;
-      if (count === 0) throw new BackroomError("not_found", `The text to replace was not found in "${path}".`);
+      if (count === 0) throw new BackroomsError("not_found", `The text to replace was not found in "${path}".`);
       if (count > 1 && !options.all) {
-        throw new BackroomError(
+        throw new BackroomsError(
           "invalid_argument",
           `The text to replace occurs ${count} times in "${path}". Give more context to make it unique, or set all.`,
         );
@@ -414,7 +414,7 @@ export class Engine {
   }
 
   async propertySet(ref: FileRef, name: string, rawValue: string, type?: PropertyValueType): Promise<WriteResult> {
-    if (name.trim() === "") throw new BackroomError("invalid_argument", "Property name must not be empty.");
+    if (name.trim() === "") throw new BackroomsError("invalid_argument", "Property name must not be empty.");
     return this.modify(ref, "property:set", undefined, (text, path, vault) => {
       const current = vault.note(path).properties[name];
       const value: PropertyValue = parsePropertyValue(
@@ -451,7 +451,7 @@ export class Engine {
     return this.write(async (vault) => {
       const from = resolveRef(vault, ref);
       if (name.includes("/"))
-        throw new BackroomError("invalid_argument", "A new name cannot contain a folder. Use move instead.");
+        throw new BackroomsError("invalid_argument", "A new name cannot contain a folder. Use move instead.");
       const ext = extension(from);
       const fileName = ext !== "" && extension(name).toLowerCase() !== ext.toLowerCase() ? `${name}.${ext}` : name;
       const to = join(dirname(from), fileName);
@@ -469,13 +469,13 @@ export class Engine {
   }
 
   /**
-   * Undoes a commit backroom made, as a new write: every file the commit touched gets its content from before the
+   * Undoes a commit backrooms made, as a new write: every file the commit touched gets its content from before the
    * commit, provided it has not changed since. Files the commit moved to .trash come back from there.
    */
   async revert(commit: string): Promise<WriteResult> {
     const git = this.requireGit();
     if (git.mode === "off") {
-      throw new BackroomError("unsupported", "Reverting needs git. Set BACKROOM_GIT to commit or sync.");
+      throw new BackroomsError("unsupported", "Reverting needs git. Set BACKROOMS_GIT to commit or sync.");
     }
     const commitChanges = await git.commitChanges(commit);
     return this.write(async (vault) => ({
@@ -486,7 +486,7 @@ export class Engine {
   }
 
   requireGit(): Git {
-    if (!this.git) throw new BackroomError("unsupported", "The vault is not a git repository.");
+    if (!this.git) throw new BackroomsError("unsupported", "The vault is not a git repository.");
     return this.git;
   }
 
@@ -596,7 +596,7 @@ function resolveRef(vault: Vault, ref: FileRef): string {
   if ("path" in ref) {
     const path = normalize(ref.path.normalize("NFC"));
     if (path !== null && path !== "" && !vault.entry(path) && vault.folders().includes(path)) {
-      throw new BackroomError("invalid_argument", `"${path}" is a folder, not a file.`);
+      throw new BackroomsError("invalid_argument", `"${path}" is a folder, not a file.`);
     }
     if (path === null || !vault.entry(path)) throw fileNotFound(ref.path);
     return path;
@@ -607,14 +607,14 @@ function resolveRef(vault: Vault, ref: FileRef): string {
 function resolveMarkdown(vault: Vault, ref: FileRef): string {
   const path = resolveRef(vault, ref);
   if (vault.entry(path)?.text === null) {
-    throw new BackroomError("invalid_argument", `"${path}" is not a markdown note.`);
+    throw new BackroomsError("invalid_argument", `"${path}" is not a markdown note.`);
   }
   return path;
 }
 
 function textOf(vault: Vault, path: string): string {
   if (vault.entry(path)?.text === null)
-    throw new BackroomError("unsupported", `"${path}" is not a text file backroom can read.`);
+    throw new BackroomsError("unsupported", `"${path}" is not a text file backrooms can read.`);
   return vault.text(path);
 }
 
@@ -622,7 +622,7 @@ function textOf(vault: Vault, path: string): string {
 function checkFrontmatterStaysReadable(before: Note, text: string, path: string) {
   const after = parseNote(text).frontmatter;
   if (before.frontmatter.kind === "valid" && after.kind === "invalid") {
-    throw new BackroomError(
+    throw new BackroomsError(
       "unsafe",
       `The change would make the frontmatter of "${path}" unreadable (${after.error.split("\n")[0]}).`,
     );
@@ -631,7 +631,7 @@ function checkFrontmatterStaysReadable(before: Note, text: string, path: string)
 
 function checkVersion(vault: Vault, path: string, version: string) {
   if (vault.version(path) !== version) {
-    throw new BackroomError(
+    throw new BackroomsError(
       "conflict",
       `File "${path}" changed since version ${version}. Read it again and retry the change.`,
     );
@@ -640,7 +640,7 @@ function checkVersion(vault: Vault, path: string, version: string) {
 
 function normalizeFolder(folder: string): string {
   const normalized = normalize(folder);
-  if (normalized === null) throw new BackroomError("invalid_argument", `Folder "${folder}" is outside the vault.`);
+  if (normalized === null) throw new BackroomsError("invalid_argument", `Folder "${folder}" is outside the vault.`);
   return normalized;
 }
 
@@ -649,21 +649,24 @@ function newFilePath(vault: Vault, target: FileTarget): string {
   if ("path" in target) {
     const normalized = normalize(target.path);
     if (normalized === null || normalized === "")
-      throw new BackroomError("invalid_argument", `Path "${target.path}" is not a valid vault path.`);
+      throw new BackroomsError("invalid_argument", `Path "${target.path}" is not a valid vault path.`);
     path = normalized;
   } else {
     if (target.name.includes("/"))
-      throw new BackroomError("invalid_argument", "A name cannot contain a folder. Use path instead.");
+      throw new BackroomsError("invalid_argument", "A name cannot contain a folder. Use path instead.");
     const folder = vault.settings.newFileLocation === "folder" ? normalizeFolder(vault.settings.newFileFolderPath) : "";
     path = join(folder, target.name);
   }
   if (extension(path) === "") path = `${path}.md`;
   if (isHidden(path))
-    throw new BackroomError("invalid_argument", `Path "${path}" is in a hidden folder, which backroom does not touch.`);
+    throw new BackroomsError(
+      "invalid_argument",
+      `Path "${path}" is in a hidden folder, which backrooms does not touch.`,
+    );
   const nameError = validateFileName(stem(path));
-  if (nameError) throw new BackroomError("invalid_argument", nameError);
+  if (nameError) throw new BackroomsError("invalid_argument", nameError);
   if (extension(path).toLowerCase() !== "md") {
-    throw new BackroomError("unsupported", "backroom only creates markdown notes.");
+    throw new BackroomsError("unsupported", "backrooms only creates markdown notes.");
   }
   return path;
 }
@@ -680,7 +683,7 @@ function freePath(vault: Vault, path: string): string {
 
 function moveDestination(vault: Vault, from: string, destination: string): string {
   const normalized = normalize(destination);
-  if (normalized === null) throw new BackroomError("invalid_argument", `"${destination}" is outside the vault.`);
+  if (normalized === null) throw new BackroomsError("invalid_argument", `"${destination}" is outside the vault.`);
   const isFolder =
     normalized === "" ||
     destination.endsWith("/") ||
@@ -698,14 +701,17 @@ function planRevert(vault: Vault, commit: string, commitChanges: CommitChange[])
   for (const change of commitChanges) {
     if (change.path.startsWith(`${TRASH_FOLDER}/`)) continue;
     if (!isMarkdown(change.path)) {
-      throw new BackroomError(
+      throw new BackroomsError(
         "unsupported",
-        `Commit ${commit} changed "${change.path}", and backroom only reverts notes.`,
+        `Commit ${commit} changed "${change.path}", and backrooms only reverts notes.`,
       );
     }
     const now = vault.entry(change.path) ? current(change.path) : null;
     if (now !== change.after) {
-      throw new BackroomError("conflict", `"${change.path}" changed since commit ${commit}, so it cannot be reverted.`);
+      throw new BackroomsError(
+        "conflict",
+        `"${change.path}" changed since commit ${commit}, so it cannot be reverted.`,
+      );
     }
   }
 

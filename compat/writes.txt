@@ -1,8 +1,8 @@
-# Write commands that backroom must carry out like the Obsidian CLI on test-vault/, one per line.
+# Write commands that backrooms must carry out like the Obsidian CLI on test-vault/, one per line.
 # Each runs on a fresh copy of the vault. The output and every file it changes have to match, except for .trash/:
-# Obsidian's CLI moves deleted files to the system trash, backroom to .trash/ (ADR 2).
+# Obsidian's CLI moves deleted files to the system trash, backrooms to .trash/ (ADR 2).
 # A leading "~ " compares frontmatter by its parsed properties: Obsidian rewrites all of the frontmatter when it
-# changes one property, backroom only the property's own text (ADR 2).
+# changes one property, backrooms only the property's own text (ADR 2).
 # Case-only renames are left out: git cannot undo them on a case-insensitive file system, which confuses Obsidian.
 # Record with `bun compat/record.ts` while test-vault is open in Obsidian; it resets test-vault with git after each.
 

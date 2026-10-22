@@ -1,13 +1,13 @@
 import { randomBytes } from "node:crypto";
 import { lstat, mkdir, readFile, rename, rmdir, stat, unlink, writeFile } from "node:fs/promises";
 import { dirname as dirnameFs, join as joinFs } from "node:path";
-import { BackroomError } from "./errors";
+import { BackroomsError } from "./errors";
 import { basename, dirname, extension, isHidden, normalize, stem } from "./paths";
 import { contentVersion } from "./vault";
 
 /**
  * One step of a planned write. Every step that touches an existing file names the version it was planned
- * against; `null` is only allowed for files whose content backroom does not read, such as attachments.
+ * against; `null` is only allowed for files whose content backrooms does not read, such as attachments.
  */
 export type Change =
   | { kind: "create"; path: string; text: string }
@@ -67,17 +67,17 @@ function onDisk(change: Change, diskPath: (path: string) => string): Change {
 }
 
 function validatePaths(change: Change) {
-  // Moving a file out of .trash restores it, which is the one way backroom touches a hidden folder.
+  // Moving a file out of .trash restores it, which is the one way backrooms touches a hidden folder.
   const restoring = change.kind === "move" && change.from.startsWith(`${TRASH_FOLDER}/`);
   const paths = change.kind === "move" ? (restoring ? [change.to] : [change.from, change.to]) : [change.path];
   for (const path of paths) {
     if (normalize(path) !== path || path === "") {
-      throw new BackroomError("invalid_argument", `Path "${path}" is not a valid vault path.`);
+      throw new BackroomsError("invalid_argument", `Path "${path}" is not a valid vault path.`);
     }
     if (isHidden(path)) {
-      throw new BackroomError(
+      throw new BackroomsError(
         "invalid_argument",
-        `Path "${path}" is in a hidden folder, which backroom does not touch.`,
+        `Path "${path}" is in a hidden folder, which backrooms does not touch.`,
       );
     }
   }
@@ -155,10 +155,10 @@ async function checkVersion(root: string, path: string, baseVersion: string | nu
     text = baseVersion === null ? "" : await readFile(joinFs(root, path), "utf8");
     if (baseVersion === null) await lstat(joinFs(root, path));
   } catch {
-    throw new BackroomError("not_found", `File "${path}" not found.`);
+    throw new BackroomsError("not_found", `File "${path}" not found.`);
   }
   if (baseVersion !== null && contentVersion(text) !== baseVersion) {
-    throw new BackroomError(
+    throw new BackroomsError(
       "conflict",
       `File "${path}" changed since version ${baseVersion}. Read it again and retry the change.`,
     );
@@ -168,7 +168,7 @@ async function checkVersion(root: string, path: string, baseVersion: string | nu
 /** Writes a file through a temporary file in the same folder and a rename, so readers never see a partial file. */
 async function atomicWrite(root: string, path: string, text: string, options: { mustNotExist: boolean }) {
   const target = joinFs(root, path);
-  const temporary = joinFs(dirnameFs(target), `.${basename(path)}.backroom-${randomBytes(6).toString("hex")}`);
+  const temporary = joinFs(dirnameFs(target), `.${basename(path)}.backrooms-${randomBytes(6).toString("hex")}`);
   const mode = options.mustNotExist ? undefined : (await stat(target).catch(() => null))?.mode;
   await writeFile(temporary, text, { encoding: "utf8", flag: "wx", ...(mode === undefined ? {} : { mode }) });
   try {
@@ -183,7 +183,7 @@ async function atomicWrite(root: string, path: string, text: string, options: { 
 /** Renames a file. A rename that only changes case goes through a temporary name for case-insensitive disks. */
 async function moveFile(root: string, from: string, to: string) {
   if (from.toLowerCase() === to.toLowerCase() && from !== to) {
-    const temporary = `${dirname(from) === "" ? "" : `${dirname(from)}/`}.backroom-${randomBytes(6).toString("hex")}`;
+    const temporary = `${dirname(from) === "" ? "" : `${dirname(from)}/`}.backrooms-${randomBytes(6).toString("hex")}`;
     await rename(joinFs(root, from), joinFs(root, temporary));
     await rename(joinFs(root, temporary), joinFs(root, to));
     return;
@@ -228,22 +228,22 @@ async function exists(root: string, path: string): Promise<boolean> {
   }
 }
 
-function alreadyExists(path: string): BackroomError {
-  return new BackroomError("already_exists", `File "${path}" already exists.`);
+function alreadyExists(path: string): BackroomsError {
+  return new BackroomsError("already_exists", `File "${path}" already exists.`);
 }
 
 /**
- * The error for a write that failed while it was applied. A BackroomError the write raised, such as a file that
+ * The error for a write that failed while it was applied. A BackroomsError the write raised, such as a file that
  * appeared in the meantime, stays as it is once the write is undone. Errors from the disk are reported with vault
  * paths instead of the server's, and say whether the vault was left partly changed.
  */
-function writeFailed(root: string, error: unknown, notRestored: string[]): BackroomError {
-  if (error instanceof BackroomError && notRestored.length === 0) return error;
+function writeFailed(root: string, error: unknown, notRestored: string[]): BackroomsError {
+  if (error instanceof BackroomsError && notRestored.length === 0) return error;
   const cause = (error instanceof Error ? error.message : String(error)).replaceAll(joinFs(root, "/"), "");
   if (notRestored.length === 0) {
-    return new BackroomError("write_failed", `The write failed and was undone, so the vault is unchanged: ${cause}`);
+    return new BackroomsError("write_failed", `The write failed and was undone, so the vault is unchanged: ${cause}`);
   }
-  return new BackroomError(
+  return new BackroomsError(
     "write_failed",
     `The write failed and could not be fully undone, so these paths may be left changed: ${notRestored.join(", ")}. The write failed because: ${cause}`,
   );

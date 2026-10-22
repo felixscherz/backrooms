@@ -8,8 +8,8 @@ import { changesBetween, loadCommands, loadRecording, parsedChanges, snapshot, V
 
 const recording = loadRecording();
 
-/** What the backroom executable prints for a command: the output and a final newline, like the Obsidian CLI. */
-async function backroom(engine: Engine, args: string[]): Promise<string> {
+/** What the backrooms executable prints for a command: the output and a final newline, like the Obsidian CLI. */
+async function backrooms(engine: Engine, args: string[]): Promise<string> {
   const { output } = await runCli(engine, parseArguments(args));
   return output === "" || output.endsWith("\n") ? output : `${output}\n`;
 }
@@ -20,7 +20,7 @@ describe(`answers like Obsidian ${recording.obsidian} on test-vault`, () => {
     test(command.line, async () => {
       const expected = recording.outputs[command.line];
       if (expected === undefined) throw new Error("Not recorded yet. Run `bun compat/record.ts`.");
-      const actual = await backroom(engine, command.args);
+      const actual = await backrooms(engine, command.args);
       if (command.unordered) expect(withoutOrder(actual)).toBe(withoutOrder(expected));
       else expect(actual).toBe(expected);
     });
@@ -37,11 +37,11 @@ describe(`writes like Obsidian ${recording.obsidian} on a copy of test-vault`, (
     test(command.line, async () => {
       const expected = recording.writes[command.line];
       if (expected === undefined) throw new Error("Not recorded yet. Run `bun compat/record.ts`.");
-      const copy = await mkdtemp(join(tmpdir(), "backroom-compat-"));
+      const copy = await mkdtemp(join(tmpdir(), "backrooms-compat-"));
       copies.push(copy);
       await cp(VAULT, copy, { recursive: true });
       const before = await snapshot(copy);
-      const output = await backroom(new Engine(copy), command.args);
+      const output = await backrooms(new Engine(copy), command.args);
       const changes = changesBetween(before, await snapshot(copy));
       if (command.unordered) {
         const [actual, recorded] = parsedChanges(before, changes, expected.changes);

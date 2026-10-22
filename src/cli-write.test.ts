@@ -532,7 +532,7 @@ describe("concurrent writes", () => {
       const result = await runCli(engine, parseArguments(["append", "path=A.md", "content=b"]));
 
       expect(result.output).toBe(
-        `Error: Another backroom process has been writing to the vault for over 0.05 seconds. Retry later, or remove ${lock.path} if no backroom process is running.`,
+        `Error: Another backrooms process has been writing to the vault for over 0.05 seconds. Retry later, or remove ${lock.path} if no backrooms process is running.`,
       );
       expect(await vault.read("A.md")).toBe("a");
     } finally {

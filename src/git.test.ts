@@ -24,7 +24,7 @@ describe("commits", () => {
     await vault.ok("rename", "path=Pizza.md", "name=Pizza Napoletana");
 
     expect(await git(vault.root, "log", "-1", "--format=%s%n%b")).toBe(
-      "backroom: Renamed: Pizza.md -> Pizza Napoletana.md\nBackroom-Operation: rename",
+      "backrooms: Renamed: Pizza.md -> Pizza Napoletana.md\nBackrooms-Operation: rename",
     );
     expect(await git(vault.root, "show", "--name-status", "--format=", "HEAD")).toBe(
       "M\tIndex.md\nR100\tPizza.md\tPizza Napoletana.md",
@@ -40,13 +40,13 @@ describe("commits", () => {
     expect(await git(vault.root, "rev-list", "--count", "HEAD")).toBe("11");
     expect(await git(vault.root, "status", "--porcelain")).toBe("");
     const appended = await git(vault.root, "log", "--format=%s", "-10");
-    expect(appended.split("\n")).toEqual(Array(10).fill("backroom: Appended to: Log.md"));
+    expect(appended.split("\n")).toEqual(Array(10).fill("backrooms: Appended to: Log.md"));
   });
 
   test("the write lock lives in .git, where git never commits it and every process on the machine sees it", async () => {
     const vault = await gitVault({ "A.md": "a" });
 
-    expect(VaultLock.of(vault.root).path).toBe(join(vault.root, ".git", "backroom.lock"));
+    expect(VaultLock.of(vault.root).path).toBe(join(vault.root, ".git", "backrooms.lock"));
     await vault.ok("append", "path=A.md", "content=b");
     expect(await git(vault.root, "status", "--porcelain", "--ignored")).toBe("");
   });
@@ -79,7 +79,7 @@ describe("commits", () => {
 
     const log = await vault.ok("git:log", "limit=1");
 
-    expect(log).toMatch(/^[0-9a-f]+\t\S+\t[^\t]+\tbackroom: Appended to: A.md$/);
+    expect(log).toMatch(/^[0-9a-f]+\t\S+\t[^\t]+\tbackrooms: Appended to: A.md$/);
   });
 });
 
@@ -120,11 +120,23 @@ describe("revert", () => {
     expect(await vault.read("A.md")).toBe("a\nb\nc");
   });
 
-  test("commits backroom did not make are not reverted", async () => {
+  test("commits made before the rename to backrooms are reverted", async () => {
+    const vault = await gitVault({ "A.md": "a" });
+    await vault.ok("append", "path=A.md", "content=b");
+    const message = await git(vault.root, "log", "-1", "--format=%B");
+    await git(vault.root, "commit", "--amend", "-m", message.replace("Backrooms-Operation", "Backroom-Operation"));
+    const commit = await git(vault.root, "rev-parse", "--short", "HEAD");
+
+    await vault.ok("git:revert", `commit=${commit}`);
+
+    expect(await vault.read("A.md")).toBe("a");
+  });
+
+  test("commits backrooms did not make are not reverted", async () => {
     const vault = await gitVault({ "A.md": "a" });
     const initial = await git(vault.root, "rev-parse", "--short", "HEAD");
 
-    expect((await vault.run("git:revert", `commit=${initial}`)).output).toContain("not made by backroom");
+    expect((await vault.run("git:revert", `commit=${initial}`)).output).toContain("not made by backrooms");
   });
 });
 

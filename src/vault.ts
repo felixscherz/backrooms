@@ -16,7 +16,7 @@ export type VaultFile = {
 export type LinkFormat = "shortest" | "relative" | "absolute";
 export type PropertyType = "text" | "multitext" | "number" | "checkbox" | "date" | "datetime" | "aliases" | "tags";
 
-/** The parts of the vault's Obsidian settings that change how backroom reads or writes it. */
+/** The parts of the vault's Obsidian settings that change how backrooms reads or writes it. */
 export type Settings = {
   newLinkFormat: LinkFormat;
   useMarkdownLinks: boolean;

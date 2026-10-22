@@ -1,6 +1,6 @@
 /**
  * Records what every write in `linter.txt` does to linter-vault in Obsidian once the Linter lints the note it
- * saved, and writes it to `linter.json`, which the Linter compatibility test replays against backroom. Needs the
+ * saved, and writes it to `linter.json`, which the Linter compatibility test replays against backrooms. Needs the
  * Obsidian app running with compat/linter-vault open as a vault; the Linter is installed there if it is missing.
  * Before each write, the notes of linter-vault are created afresh from git, so their creation date is the time of
  * the run, and uncommitted changes to them are lost.
