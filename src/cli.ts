@@ -85,6 +85,7 @@ const commands: Record<string, Command> = {
     run: async (engine, args) => {
       const headings = await engine.outline(args.ref());
       if (args.flag("total")) return String(headings.length);
+      if (headings.length === 0) return "No headings found.";
       switch (args.format(["tree", "md", "json"] as const, "tree")) {
         case "json":
           return json(headings);
@@ -103,7 +104,9 @@ const commands: Record<string, Command> = {
     run: async (engine, args) => {
       const ref = args.optionalRef();
       if (ref) {
-        const { properties, yaml } = await engine.properties(ref);
+        const frontmatter = await engine.properties(ref);
+        if (!frontmatter) return "No frontmatter found.";
+        const { properties, yaml } = frontmatter;
         if (args.flag("total")) return String(Object.keys(properties).length);
         switch (args.format(["yaml", "json", "tsv"] as const, "yaml")) {
           case "json":
@@ -173,6 +176,7 @@ const commands: Record<string, Command> = {
       const ref = args.optionalRef();
       let tags: TagCount[] = ref ? (await engine.tagsOf(ref)).map((tag) => ({ tag, count: 1 })) : await engine.tags();
       if (args.flag("total")) return String(tags.length);
+      if (tags.length === 0) return "No tags found.";
       if (args.get("sort") === "count")
         tags = [...tags].sort((a, b) => b.count - a.count || compareNames(a.tag, b.tag));
       const counts = args.flag("counts") && !ref;
@@ -185,7 +189,7 @@ const commands: Record<string, Command> = {
         );
       }
       const rows = tags.map((entry) => (counts ? [`#${entry.tag}`, entry.count] : [`#${entry.tag}`]));
-      return format === "csv" ? csv([counts ? ["tag", "count"] : ["tag"], ...rows]) : tsv(rows);
+      return format === "csv" ? csv(rows) : tsv(rows);
     },
   },
   tag: {
@@ -204,6 +208,7 @@ const commands: Record<string, Command> = {
     run: async (engine, args) => {
       const aliases = await engine.aliases(args.optionalRef());
       if (args.flag("total")) return String(aliases.length);
+      if (aliases.length === 0) return "No aliases found.";
       return args.flag("verbose")
         ? tsv(aliases.map((entry) => [entry.alias, entry.path]))
         : lines(aliases.map((entry) => entry.alias));
@@ -215,6 +220,7 @@ const commands: Record<string, Command> = {
     run: async (engine, args) => {
       const links = await engine.links(args.ref());
       if (args.flag("total")) return String(links.length);
+      if (links.length === 0) return "No links found.";
       return lines(links.map((link) => (link.resolved ? link.target : `${link.target} (unresolved)`)));
     },
   },
@@ -224,6 +230,7 @@ const commands: Record<string, Command> = {
     run: async (engine, args) => {
       const backlinks = await engine.backlinks(args.ref());
       if (args.flag("total")) return String(backlinks.length);
+      if (backlinks.length === 0) return "No backlinks found.";
       const counts = args.flag("counts");
       const format = args.format(["tsv", "json", "csv"] as const, "tsv");
       if (format === "json") {
@@ -231,9 +238,8 @@ const commands: Record<string, Command> = {
           backlinks.map((entry) => (counts ? { file: entry.file, count: String(entry.count) } : { file: entry.file })),
         );
       }
-      if (backlinks.length === 0) return "No backlinks found.";
       const rows = backlinks.map((entry) => (counts ? [entry.file, entry.count] : [entry.file]));
-      return format === "csv" ? csv([counts ? ["file", "count"] : ["file"], ...rows]) : tsv(rows);
+      return format === "csv" ? csv(rows) : tsv(rows);
     },
   },
   unresolved: {
@@ -259,8 +265,7 @@ const commands: Record<string, Command> = {
         ...(counts ? [entry.count] : []),
         ...(verbose ? [entry.sources.join(", ")] : []),
       ]);
-      const header = ["link", ...(counts ? ["count"] : []), ...(verbose ? ["sources"] : [])];
-      return format === "csv" ? csv([header, ...rows]) : tsv(rows);
+      return format === "csv" ? csv(rows) : tsv(rows);
     },
   },
   orphans: {
@@ -301,8 +306,10 @@ const commands: Record<string, Command> = {
     run: async (engine, args) => {
       const matches = await search(engine, args);
       if (args.flag("total")) return String(matches.length);
-      if (args.format(["text", "json"] as const, "text") === "json") return json(matches.map((match) => match.path));
-      return matches.length === 0 ? "No matches found." : lines(matches.map((match) => match.path));
+      if (matches.length === 0) return "No matches found.";
+      if (args.format(["text", "json"] as const, "text") === "json")
+        return JSON.stringify(matches.map((match) => match.path));
+      return lines(matches.map((match) => match.path));
     },
   },
   "search:context": {
@@ -310,10 +317,10 @@ const commands: Record<string, Command> = {
     params: ["query=<text>", "path=<folder>", "limit=<n>", "case", "format=text|json"],
     run: async (engine, args) => {
       const matches = await search(engine, args);
-      if (args.format(["text", "json"] as const, "text") === "json") {
-        return json(matches.map((match) => ({ file: match.path, matches: match.lines })));
-      }
       if (matches.length === 0) return "No matches found.";
+      if (args.format(["text", "json"] as const, "text") === "json") {
+        return JSON.stringify(matches.map((match) => ({ file: match.path, matches: match.lines })));
+      }
       return lines(
         matches.flatMap((match) =>
           match.lines.length === 0
@@ -592,6 +599,7 @@ function csv(rows: (string | number)[][]): string {
   return rows.map((row) => row.map(cell).join(",")).join("\n");
 }
 
+/** Indented json. Search results are the exception: the Obsidian CLI prints them on one line. */
 function json(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }

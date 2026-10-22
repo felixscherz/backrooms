@@ -62,11 +62,15 @@ export function splitShellWords(line: string): string[] {
   return words;
 }
 
-/** Output in a form where the order of lines, or of a json array's items, no longer matters. */
+/**
+ * Output in a form where the order of lines, or of a json array's items, no longer matters. Whether json is
+ * printed on one line or indented still does.
+ */
 export function withoutOrder(output: string): string {
   try {
     const value = JSON.parse(output);
-    if (Array.isArray(value)) return JSON.stringify(value.map((item) => JSON.stringify(item)).sort());
+    const layout = output.trim().includes("\n") ? "indented" : "one line";
+    if (Array.isArray(value)) return `${layout}: ${JSON.stringify(value.map((item) => JSON.stringify(item)).sort())}`;
   } catch {}
   return output.split("\n").sort().join("\n");
 }

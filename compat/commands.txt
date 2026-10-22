@@ -17,9 +17,13 @@ outline path="Alpha.md" format=md
 outline path="Alpha.md" total
 outline path="outline/Nested headings.md" format=json
 outline path="Beta.md" format=json
+outline path="folder/sub/Delta.md"
 
 properties path="Alpha.md" format=json
 properties path="properties/Value kinds.md" format=json
+properties path="properties/No frontmatter.md"
+properties path="properties/No frontmatter.md" format=json
+properties path="Broken Frontmatter.md"
 properties path="Windows Note.md"
 properties name=rating
 properties name=cssclasses
@@ -33,26 +37,31 @@ property:read path="properties/Value kinds.md" name=d
 property:read path="properties/Value kinds.md" name=f
 
 tags path="Broken Frontmatter.md"
+tags path="Orphan Note.md"
 
 aliases
 aliases verbose
 aliases total
 aliases path="Alpha.md"
+aliases path="Beta.md"
 
 links path="Alpha.md"
 links path="Alpha.md" total
 links path="folder/sub/Delta.md"
+links path="Orphan Note.md"
 links path="Beta.md"
 backlinks path="Alpha.md"
 backlinks path="Alpha.md" counts
 backlinks path="Alpha.md" total
 backlinks path="Alpha.md" format=json
 backlinks path="Alpha.md" format=json counts
+backlinks path="Alpha.md" format=csv counts
 backlinks path="Alpha.md" format=tsv counts
 backlinks path="Beta.md"
 backlinks path="Gamma.md"
 backlinks path="folder/Gamma.md"
 backlinks path="Orphan Note.md"
+backlinks path="Orphan Note.md" format=json
 backlinks path="assets/diagram.png"
 backlinks file=Gamma
 orphans
@@ -95,10 +104,12 @@ folders folder=projects
 ~ search query=pizza format=json
 search query=pizza total
 search query=nothingmatches
+search query=nothingmatches format=json
 ~ search:context query=pizza
 ~ search:context query=pizza format=json
 ~ search:context query="file:Gamma"
 search:context query=nothingmatches
+search:context query=nothingmatches format=json
 
 wordcount path="Alpha.md" characters
 wordcount path="Broken Frontmatter.md"

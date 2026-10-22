@@ -92,15 +92,13 @@ export class Engine {
       .headings.map((heading) => ({ level: heading.level, heading: heading.text, line: heading.line + 1 }));
   }
 
-  async properties(ref: FileRef): Promise<{ path: string; properties: Properties; yaml: string }> {
+  /** A note's properties and their YAML as written, or null when it has no frontmatter Obsidian can read. */
+  async properties(ref: FileRef): Promise<{ path: string; properties: Properties; yaml: string } | null> {
     const vault = await this.vault();
     const path = resolveMarkdown(vault, ref);
     const note = vault.note(path);
-    const text = vault.text(path);
-    const yaml =
-      note.frontmatter.kind === "valid"
-        ? text.slice(note.frontmatter.yamlSpan.start, note.frontmatter.yamlSpan.end)
-        : "";
+    if (note.frontmatter.kind !== "valid") return null;
+    const yaml = vault.text(path).slice(note.frontmatter.yamlSpan.start, note.frontmatter.yamlSpan.end);
     return { path, properties: note.properties, yaml };
   }
 
