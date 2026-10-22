@@ -1,5 +1,7 @@
 import { BackroomError, fileNotFound } from "./errors";
 import {
+  BUILT_IN_PROPERTIES,
+  inferPropertyType,
   inferValueType,
   parsePropertyValue,
   removeProperty,
@@ -23,7 +25,7 @@ import {
   validateFileName,
 } from "./paths";
 import { matchFile, parseQuery, type FileMatch } from "./search";
-import { Vault, type VaultFile } from "./vault";
+import { Vault, type PropertyType, type VaultFile } from "./vault";
 import type { CommitChange, Git } from "./git";
 import { applyChanges, TRASH_FOLDER, type AppliedChange, type Change } from "./write";
 
@@ -36,7 +38,7 @@ export type OutgoingLink = { target: string; resolved: boolean };
 export type Backlink = { file: string; count: number };
 export type Alias = { alias: string; path: string };
 export type UnresolvedLink = { link: string; count: number; sources: string[] };
-export type PropertyCount = { name: string; count: number };
+export type PropertyCount = { name: string; type: PropertyType | "unknown"; count: number };
 
 /** A write that was applied, described for the caller and for the commit that records it. */
 export type WriteResult = { operation: string; summary: string; changes: AppliedChange[]; warnings: string[] };
@@ -102,20 +104,32 @@ export class Engine {
     return { path, properties: note.properties, yaml };
   }
 
+  /**
+   * The vault's properties with how many notes have each, including Obsidian's built-in ones. The type is the one
+   * in `.obsidian/types.json`, else the one Obsidian infers from the first value.
+   */
   async propertyNames(): Promise<PropertyCount[]> {
     const vault = await this.vault();
-    const counts = new Map<string, number>();
+    const counts = new Map<string, PropertyCount>(
+      Object.entries(BUILT_IN_PROPERTIES).map(([name, type]) => [name, { name, type, count: 0 }]),
+    );
     for (const path of vault.markdownPaths()) {
-      for (const name of Object.keys(vault.note(path).properties)) counts.set(name, (counts.get(name) ?? 0) + 1);
+      for (const [name, value] of Object.entries(vault.note(path).properties)) {
+        const entry = counts.get(name) ?? { name, type: inferPropertyType(value), count: 0 };
+        entry.count++;
+        counts.set(name, entry);
+      }
     }
-    return [...counts].map(([name, count]) => ({ name, count })).sort((a, b) => compareNames(a.name, b.name));
+    return [...counts.values()]
+      .map((entry) => ({ ...entry, type: vault.settings.propertyTypes[entry.name] ?? entry.type }))
+      .sort((a, b) => compareNames(a.name, b.name));
   }
 
   async propertyRead(ref: FileRef, name: string): Promise<JsonValue> {
     const vault = await this.vault();
     const path = resolveMarkdown(vault, ref);
     const properties = vault.note(path).properties;
-    if (!(name in properties)) throw new BackroomError("not_found", `Property "${name}" not found in "${path}".`);
+    if (!(name in properties)) throw new BackroomError("not_found", `Property "${name}" not found.`);
     return properties[name]!;
   }
 

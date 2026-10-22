@@ -23,22 +23,44 @@ outline path="syntax/Comments tasks and blocks.md"
 outline path="Beta.md" format=json
 outline path="folder/sub/Delta.md"
 
+properties path="Alpha.md"
 properties path="Alpha.md" format=json
+properties path="Alpha.md" format=tsv
+properties path="Alpha.md" total
+properties path="properties/Value kinds.md"
 properties path="properties/Value kinds.md" format=json
+properties path="properties/Value kinds.md" format=tsv
+properties path="properties/Long and special values.md"
+properties path="properties/Long and special values.md" format=tsv
 properties path="properties/No frontmatter.md"
 properties path="properties/No frontmatter.md" format=json
 properties path="Broken Frontmatter.md"
 properties path="Windows Note.md"
+properties
+properties counts
+properties total
+properties format=json
+properties format=json counts
+properties format=tsv counts
 properties name=rating
 properties name=cssclasses
+properties name=nope
 property:read path="Alpha.md" name=tags
 property:read path="Alpha.md" name=related
 property:read path="Alpha.md" name=rating
 property:read path="Alpha.md" name=date_created
 property:read path="Alpha.md" name=done
+property:read path="properties/Value kinds.md" name=nested
+property:read path="properties/Value kinds.md" name=e
+property:read path="properties/Value kinds.md" name=nope
 property:read path="properties/Value kinds.md" name=multi
+property:read path="properties/Value kinds.md" name=empty_list
 property:read path="properties/Value kinds.md" name=d
 property:read path="properties/Value kinds.md" name=f
+property:read path="Broken Frontmatter.md" name=title
+property:read path="properties/Long and special values.md" name=multi_folded
+property:read path="properties/Long and special values.md" name=tilde
+property:read path="properties/Long and special values.md" name=long_list
 
 tags
 tags counts

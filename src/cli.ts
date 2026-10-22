@@ -1,6 +1,7 @@
 import { Engine, type FileRef, type FileTarget, type OutlineHeading, type TagCount, type WriteResult } from "./engine";
 import { BackroomError } from "./errors";
 import { propertyValueTypes, type PropertyValueType } from "./frontmatter";
+import { stringify as stringifyYaml } from "yaml";
 import type { JsonValue } from "./note";
 import { compareNames } from "./paths";
 
@@ -104,33 +105,35 @@ const commands: Record<string, Command> = {
       if (ref) {
         const frontmatter = await engine.properties(ref);
         if (!frontmatter) return "No frontmatter found.";
-        const { properties, yaml } = frontmatter;
-        if (args.flag("total")) return String(Object.keys(properties).length);
         switch (args.format(["yaml", "json", "tsv"] as const, "yaml")) {
           case "json":
-            return json(properties);
+            return json(frontmatter.properties);
           case "tsv":
-            return tsv(Object.entries(properties).map(([name, value]) => [name, scalarText(value)]));
+            return tsv(
+              Object.entries(frontmatter.properties)
+                .filter(([, value]) => value !== null)
+                .map(([name, value]) => [name, obsidianText(value)]),
+            );
           case "yaml":
-            return yaml.replace(/\r?\n$/, "");
+            return stringifyYaml(frontmatter.properties, { nullStr: "", lineWidth: 0 }).replace(/\n$/, "");
         }
       }
       let names = await engine.propertyNames();
       const name = args.get("name");
-      if (name !== undefined) return String(names.find((entry) => entry.name === name)?.count ?? 0);
+      if (name !== undefined) {
+        const entry = names.find((candidate) => candidate.name === name);
+        if (!entry) throw new BackroomError("not_found", `Property "${name}" not found.`);
+        return String(entry.count);
+      }
       if (args.flag("total")) return String(names.length);
       if (args.get("sort") === "count")
         names = [...names].sort((a, b) => b.count - a.count || compareNames(a.name, b.name));
-      const counts = args.flag("counts");
       switch (args.format(["yaml", "json", "tsv"] as const, "yaml")) {
         case "json":
-          return json(
-            names.map((entry) => (counts ? { name: entry.name, count: String(entry.count) } : { name: entry.name })),
-          );
+          return json(names);
         case "tsv":
-          return tsv(names.map((entry) => (counts ? [entry.name, entry.count] : [entry.name])));
         case "yaml":
-          return lines(names.map((entry) => (counts ? `${entry.name}: ${entry.count}` : entry.name)));
+          return tsv(names.map((entry) => (args.flag("counts") ? [entry.name, entry.count] : [entry.name])));
       }
     },
   },
@@ -139,7 +142,8 @@ const commands: Record<string, Command> = {
     params: ["name=<name>", "file=<name>", "path=<path>"],
     run: async (engine, args) => {
       const value = await engine.propertyRead(args.ref(), args.required("name"));
-      return Array.isArray(value) ? lines(value.map(scalarText)) : scalarText(value);
+      const text = Array.isArray(value) ? value.join("\n") : obsidianText(value);
+      return text === "" ? "(empty)" : text;
     },
   },
   "property:set": {
@@ -600,10 +604,10 @@ export function unescapeContent(value: string): string {
   return value.replace(/\\(\\|n|t)/g, (_, char: string) => (char === "n" ? "\n" : char === "t" ? "\t" : "\\"));
 }
 
-function scalarText(value: JsonValue): string {
+/** A property value as the Obsidian CLI prints it, which is how JavaScript turns it into text. */
+function obsidianText(value: JsonValue): string {
   if (value === null) return "";
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
+  return Array.isArray(value) ? value.join(", ") : String(value);
 }
 
 function lines(values: string[]): string {

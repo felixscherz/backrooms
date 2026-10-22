@@ -81,6 +81,27 @@ export function inferValueType(known: PropertyType | undefined, current: unknown
   return "text";
 }
 
+/** Properties every vault has in Obsidian, listed even when no note uses them. */
+export const BUILT_IN_PROPERTIES: Record<string, PropertyType> = {
+  aliases: "aliases",
+  cssclasses: "multitext",
+  tags: "tags",
+};
+
+/** The type Obsidian infers for a property it has no type for, from one of its values. */
+export function inferPropertyType(value: unknown): PropertyType | "unknown" {
+  if (value === null || value === undefined) return "text";
+  if (typeof value === "number") return "number";
+  if (typeof value === "boolean") return "checkbox";
+  if (typeof value === "string") {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return "date";
+    if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(value)) return "datetime";
+    return "text";
+  }
+  if (Array.isArray(value) && value.every((item) => typeof item === "string")) return "multitext";
+  return "unknown";
+}
+
 /**
  * Sets a property by rewriting only the text of its value in the frontmatter, or by adding a line for a new
  * property. Everything else in the file stays byte for byte as it was.
