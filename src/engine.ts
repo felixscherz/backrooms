@@ -11,6 +11,7 @@ import { planMove } from "./move";
 import { parseNote, type JsonValue, type Note, type Properties } from "./note";
 import {
   basename,
+  compareCodeUnits,
   compareNames,
   dirname,
   extension,
@@ -164,7 +165,10 @@ export class Engine {
 
   // Links
 
-  /** The distinct files a note links to, and the link paths that resolve to no file. */
+  /**
+   * The distinct files a note links to, and the link paths that resolve to no file. Unlike the other listings,
+   * the Obsidian CLI sorts these by code units, so "Zeta.md" comes before "alpha.md".
+   */
   async links(ref: FileRef): Promise<OutgoingLink[]> {
     const vault = await this.vault();
     const path = resolveMarkdown(vault, ref);
@@ -174,7 +178,7 @@ export class Engine {
       const entry = target === null ? { target: link.target, resolved: false } : { target, resolved: true };
       seen.set(`${entry.resolved}:${entry.target.toLowerCase()}`, entry);
     }
-    return [...seen.values()].sort((a, b) => compareNames(a.target, b.target));
+    return [...seen.values()].sort((a, b) => compareCodeUnits(a.target, b.target));
   }
 
   async backlinks(ref: FileRef): Promise<Backlink[]> {
@@ -201,21 +205,29 @@ export class Engine {
     return [...result.values()].sort((a, b) => compareNames(a.link, b.link));
   }
 
-  /** Files that no other note links to. Only notes unless `all` is set. */
-  async orphans(all: boolean): Promise<string[]> {
+  /**
+   * Files that no other note links to. Like the Obsidian CLI, this includes attachments, although its help says
+   * that only the `all` flag does.
+   */
+  async orphans(): Promise<string[]> {
     const vault = await this.vault();
     const linked = new Set<string>();
     for (const [source, links] of vault.allResolvedLinks()) {
       for (const { target } of links) if (target !== null && target !== source) linked.add(target);
     }
-    const candidates = all ? vault.files().map((file) => file.path) : vault.markdownPaths();
-    return candidates.filter((path) => !linked.has(path));
+    return vault
+      .files()
+      .map((file) => file.path)
+      .filter((path) => !linked.has(path));
   }
 
-  /** Notes without outgoing links. */
+  /** Files without outgoing links, which includes every attachment, as in the Obsidian CLI. */
   async deadends(): Promise<string[]> {
     const vault = await this.vault();
-    return vault.markdownPaths().filter((path) => vault.note(path).links.length === 0);
+    return vault
+      .files()
+      .map((file) => file.path)
+      .filter((path) => vault.entry(path)?.text === null || vault.note(path).links.length === 0);
   }
 
   // Listing and search
@@ -230,10 +242,11 @@ export class Engine {
     });
   }
 
+  /** Folders at or below `folder`, the vault root (`""`) included when there is no filter. */
   async folders(options: { folder?: string }): Promise<string[]> {
     const vault = await this.vault();
     const folder = options.folder === undefined ? "" : normalizeFolder(options.folder);
-    return vault.folders().filter((path) => folder === "" || path.startsWith(`${folder}/`));
+    return ["", ...vault.folders()].filter((path) => folder === "" || path === folder || path.startsWith(`${folder}/`));
   }
 
   async search(
@@ -496,6 +509,9 @@ function includedNotes(vault: Vault): string[] {
 function resolveRef(vault: Vault, ref: FileRef): string {
   if ("path" in ref) {
     const path = normalize(ref.path);
+    if (path !== null && path !== "" && !vault.entry(path) && vault.folders().includes(path)) {
+      throw new BackroomError("invalid_argument", `"${path}" is a folder, not a file.`);
+    }
     if (path === null || !vault.entry(path)) throw fileNotFound(ref.path);
     return path;
   }

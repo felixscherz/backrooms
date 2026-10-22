@@ -9,6 +9,7 @@ read file=Alpha
 read file=Gamma
 read file="Note With Space"
 read file=First
+file path=folder
 file path="Nope.md"
 
 outline path="Alpha.md" format=json
@@ -54,11 +55,21 @@ backlinks path="folder/Gamma.md"
 backlinks path="Orphan Note.md"
 backlinks path="assets/diagram.png"
 backlinks file=Gamma
+orphans
+orphans total
+orphans all
+deadends
+deadends total
+deadends all
 
+files
 files total
 files ext=png
 files folder=folder
 files folder=projects
+folders
+folders total
+folders folder=projects
 
 ~ search query=pizza
 ~ search query="pizza dough"

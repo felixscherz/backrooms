@@ -267,7 +267,7 @@ const commands: Record<string, Command> = {
     summary: "List files with no incoming links",
     params: ["total", "all"],
     run: async (engine, args) => {
-      const orphans = await engine.orphans(args.flag("all"));
+      const orphans = await engine.orphans();
       return args.flag("total") ? String(orphans.length) : lines(orphans);
     },
   },
@@ -292,7 +292,7 @@ const commands: Record<string, Command> = {
     params: ["folder=<path>", "total"],
     run: async (engine, args) => {
       const folders = await engine.folders({ folder: args.get("folder") });
-      return args.flag("total") ? String(folders.length) : lines(folders);
+      return args.flag("total") ? String(folders.length) : lines(folders.map((folder) => folder || "/"));
     },
   },
   search: {

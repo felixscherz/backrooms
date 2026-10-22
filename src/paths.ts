@@ -71,10 +71,18 @@ export function validateFileName(name: string): string | null {
   return null;
 }
 
+const collator = new Intl.Collator("en", { sensitivity: "base", numeric: true });
+
 /**
- * Order of every sorted listing: by UTF-16 code units, so uppercase sorts before lowercase. This matches the order
- * of sources in the Obsidian CLI's `unresolved verbose` output ("AWS Glue Table.md, Amazon Athena.md").
+ * Order of every sorted listing, as in the Obsidian CLI: ignoring case and accents, with numbers compared by value
+ * ("Note 2" before "Note 10"). Names that differ only in case or accents compare equal, so a stable sort keeps
+ * them in the order they were found, like Obsidian does.
  */
 export function compareNames(a: string, b: string): number {
+  return collator.compare(a, b);
+}
+
+/** Plain UTF-16 code unit order, so uppercase sorts before lowercase. */
+export function compareCodeUnits(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }

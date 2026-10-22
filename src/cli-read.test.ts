@@ -159,7 +159,7 @@ describe("files", () => {
 
 describe("search", () => {
   test("search lists matching notes, ignoring case", async () => {
-    expect(await vault.ok("search", "query=pizza")).toBe("Alpha.md\nBeta.md\nGamma.md\nfolder/Delta.md");
+    expect(await vault.ok("search", "query=pizza")).toBe("Alpha.md\nBeta.md\nfolder/Delta.md\nGamma.md");
   });
 
   test("search:context shows the matching lines", async () => {
