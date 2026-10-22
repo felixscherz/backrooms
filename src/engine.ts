@@ -284,7 +284,7 @@ export class Engine {
     const vault = await this.vault();
     const text = vault.text(resolveMarkdown(vault, ref));
     const body = text.replace(/^---\r?\n[\s\S]*?\r?\n---[ \t]*(\r?\n|$)/, "");
-    return { words: body.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word)).length, characters: body.length };
+    return { words: body.match(WORD)?.length ?? 0, characters: body.length };
   }
 
   async info(): Promise<{ name: string; path: string; files: number; folders: number; size: number }> {
@@ -511,6 +511,13 @@ export class Engine {
     return next;
   }
 }
+
+/**
+ * A word as Obsidian's word count sees it: a run of letters, hyphens and straight apostrophes, or a number such as
+ * 3.14 or 1,000. Chinese and Japanese characters, which are written without spaces, count one word each.
+ */
+const WORD =
+  /(?:[0-9]+(?:[,.][0-9]+)*|(?![\p{sc=Han}\u3041-\u3096\u30a0-\u30ff])[-'\p{L}])+|[\p{sc=Han}\u3041-\u3096\u30a0-\u30ff]/gu;
 
 /** Where a new file goes: an exact path, or a name placed by the vault's new file location setting. */
 export type FileTarget = { path: string } | { name: string };

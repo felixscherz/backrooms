@@ -173,22 +173,44 @@ search query=nothingmatches format=json
 search:context query=nothingmatches
 search:context query=nothingmatches format=json
 
+wordcount path="Alpha.md"
+wordcount path="Alpha.md" words
 wordcount path="Alpha.md" characters
 wordcount path="Broken Frontmatter.md"
 wordcount path="Windows Note.md"
+wordcount path="words/Abbreviations.md"
 wordcount path="words/Accented letters.md"
+wordcount path="words/Arabic Hebrew Devanagari.md"
 wordcount path="words/Broken frontmatter is skipped.md"
+wordcount path="words/CJK punctuation.md"
+wordcount path="words/CJK.md"
+wordcount path="words/Code and HTML count.md"
+wordcount path="words/Combining marks.md"
 wordcount path="words/Comments count.md"
 wordcount path="words/Curly apostrophe alone.md"
+wordcount path="words/Curly apostrophe.md"
 wordcount path="words/Cyrillic and Greek.md"
+wordcount path="words/Double hyphen.md"
 wordcount path="words/Emoji.md"
 wordcount path="words/Frontmatter is skipped.md"
 wordcount path="words/Hangul jamo.md"
+wordcount path="words/Headings and tasks.md"
+wordcount path="words/Hyphens apostrophes and numbers.md"
+wordcount path="words/Indented frontmatter.md"
 wordcount path="words/Inline formatting.md"
+wordcount path="words/Kana.md"
 wordcount path="words/Ligatures and symbols.md"
+wordcount path="words/Link syntax.md"
+wordcount path="words/Mixed CJK and Latin.md"
 wordcount path="words/Only frontmatter with newline.md"
 wordcount path="words/Only frontmatter.md"
+wordcount path="words/Other digits.md"
 wordcount path="words/Plain words.md"
+wordcount path="words/Punctuation alone.md"
+wordcount path="words/Roman numerals.md"
+wordcount path="words/Straight apostrophe alone.md"
+wordcount path="words/Thai.md"
+wordcount path="words/URLs and emails.md"
 
 vault info=name
 vault info=files
