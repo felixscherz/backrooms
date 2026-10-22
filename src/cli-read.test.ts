@@ -91,8 +91,8 @@ describe("properties", () => {
 });
 
 describe("tags", () => {
-  test("tags of a note include frontmatter and inline tags with a leading hash", async () => {
-    expect(await vault.ok("tags", "path=Alpha.md")).toBe("#inbox\n#project/alpha\n#idea");
+  test("tags of a note include frontmatter and inline tags with a leading hash, sorted", async () => {
+    expect(await vault.ok("tags", "path=Alpha.md")).toBe("#idea\n#inbox\n#project/alpha");
   });
 
   test("vault tags with counts as json count notes per tag, as strings like the Obsidian CLI", async () => {
@@ -201,7 +201,7 @@ describe("nested tags and excluded files", () => {
   beforeAll(async () => {
     nested = await tempVault(
       {
-        "Python.md": "#resource/python #resource/tools",
+        "Python.md": "#resource/python #resource/tools #Resource/Python",
         "Rust.md": "---\ntags: [resource/rust]\n---\n",
         "Home.md": "#area/home",
         "assets/Drawing.excalidraw.md": "---\ntags: [excalidraw, resource/python]\n---\n[[Python]] pizza",
@@ -212,24 +212,33 @@ describe("nested tags and excluded files", () => {
 
   afterAll(() => nested.remove());
 
-  test("vault tags include each parent tag, counting the nested tags below it", async () => {
+  test("vault tags count every occurrence and include each parent tag, counting the tags below it", async () => {
     expect(await nested.ok("tags", "counts")).toBe(
       [
         "#area\t1",
         "#area/home\t1",
-        "#resource\t3",
-        "#resource/python\t1",
+        "#resource\t4",
+        "#resource/python\t2",
         "#resource/rust\t1",
         "#resource/tools\t1",
       ].join("\n"),
     );
   });
 
-  test("tag lists the notes with the tag or a tag nested below it", async () => {
-    expect(await nested.ok("tag", "name=resource", "verbose")).toBe("#resource\t2\nPython.md\nRust.md");
+  test("tag lists the notes with exactly this tag, and the count of the tag list", async () => {
+    expect(await nested.ok("tag", "name=resource/python", "verbose")).toBe(
+      "#resource/python\t2\nassets/Drawing.excalidraw.md\nPython.md",
+    );
+    expect(await nested.ok("tag", "name=resource")).toBe("");
+    expect(await nested.run("tag", "name=Resource")).toEqual({
+      output: 'Error: Tag "#Resource" not found.',
+      exitCode: 1,
+    });
   });
 
   test("excluded files are left out of tags and search, but their links still count", async () => {
+    await nested.write("Assets of the house.md", "Not excluded: filters are folder prefixes. #house");
+    expect(await nested.ok("tags")).toContain("#house");
     expect(await nested.ok("tags")).not.toContain("#excalidraw");
     expect(await nested.ok("search", "query=pizza")).toBe("No matches found.");
     expect(await nested.ok("backlinks", "path=Python.md")).toBe("assets/Drawing.excalidraw.md");

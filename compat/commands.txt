@@ -40,8 +40,32 @@ property:read path="properties/Value kinds.md" name=multi
 property:read path="properties/Value kinds.md" name=d
 property:read path="properties/Value kinds.md" name=f
 
+tags
+tags counts
+tags total
+tags format=json
+tags format=json counts
+tags format=csv counts
+tags format=tsv counts
+tags path="Alpha.md"
+tags path="Alpha.md" counts
+tags path="Alpha.md" format=json
+tags path="projects/Project Plan.md"
+tags path="syntax/Comments tasks and blocks.md"
 tags path="Broken Frontmatter.md"
 tags path="Orphan Note.md"
+tag name=idea
+tag name="#idea"
+tag name=idea verbose
+tag name=idea total
+tag name=Idea verbose
+tag name=project verbose
+tag name=project/alpha verbose
+tag name=resource
+tag name=resource verbose
+tag name=only-excluded
+tag name=nope
+tag name=nope verbose
 
 aliases
 aliases verbose
@@ -51,7 +75,9 @@ aliases path="Beta.md"
 
 links path="Alpha.md"
 links path="Alpha.md" total
+links path="projects/Project Plan.md"
 links path="folder/sub/Delta.md"
+links path="syntax/Comments tasks and blocks.md"
 links path="Orphan Note.md"
 links path="Beta.md"
 backlinks path="Alpha.md"
@@ -67,7 +93,17 @@ backlinks path="folder/Gamma.md"
 backlinks path="Orphan Note.md"
 backlinks path="Orphan Note.md" format=json
 backlinks path="assets/diagram.png"
+backlinks path="projects/Project Plan.md"
 backlinks file=Gamma
+unresolved
+unresolved total
+unresolved counts
+unresolved verbose
+unresolved verbose counts
+unresolved format=json
+unresolved format=json verbose
+unresolved format=json counts verbose
+unresolved format=csv counts verbose
 orphans
 orphans total
 orphans all

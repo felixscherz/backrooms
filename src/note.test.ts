@@ -48,10 +48,10 @@ describe("tags", () => {
     expect(note.tags).toEqual([]);
   });
 
-  test("tags inside code and comments are ignored", () => {
+  test("tags inside code are ignored, but tags inside comments count, as in Obsidian", () => {
     const note = parseNote("`#inline`\n```\n#fenced\n```\n%% #comment %%\n#real");
 
-    expect(note.tags).toEqual(["real"]);
+    expect(note.tags).toEqual(["comment", "real"]);
   });
 });
 
@@ -153,10 +153,10 @@ describe("links", () => {
     expect(parseNote("[site](https://example.com) [mail](mailto:a@b.c)").links).toEqual([]);
   });
 
-  test("links inside code and comments are ignored", () => {
+  test("links inside code are ignored, but links inside comments count, as in Obsidian", () => {
     const note = parseNote("`[[inline]]`\n```\n[[fenced]]\n```\n%%\n[[comment]]\n%%\n[[real]]");
 
-    expect(note.links.map((link) => link.target)).toEqual(["real"]);
+    expect(note.links.map((link) => link.target)).toEqual(["comment", "real"]);
   });
 
   test("wikilinks in property values are links located at their property", () => {

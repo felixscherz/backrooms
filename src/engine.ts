@@ -119,40 +119,40 @@ export class Engine {
     return properties[name]!;
   }
 
-  async tagsOf(ref: FileRef): Promise<string[]> {
-    const vault = await this.vault();
-    return vault.note(resolveMarkdown(vault, ref)).tags;
-  }
-
-  /**
-   * Every tag in the vault with the number of notes that carry it. Like the Obsidian CLI, the list includes each
-   * parent of a nested tag, counted once for every tag below it, and leaves out excluded files.
-   */
-  async tags(): Promise<TagCount[]> {
+  /** The tags of a note with how often each occurs. Unlike the vault's tags, `#idea` and `#Idea` stay apart. */
+  async tagsOf(ref: FileRef): Promise<TagCount[]> {
     const vault = await this.vault();
     const counts = new Map<string, TagCount>();
-    const count = (tag: string) => {
-      const entry = counts.get(tag.toLowerCase()) ?? { tag, count: 0 };
+    for (const tag of vault.note(resolveMarkdown(vault, ref)).tagOccurrences) {
+      const entry = counts.get(tag) ?? { tag, count: 0 };
       entry.count++;
-      counts.set(tag.toLowerCase(), entry);
-    };
-    for (const path of includedNotes(vault)) {
-      for (const tag of vault.note(path).tags) {
-        const parts = tag.split("/");
-        for (let depth = 1; depth <= parts.length; depth++) count(parts.slice(0, depth).join("/"));
-      }
+      counts.set(tag, entry);
     }
     return [...counts.values()].sort((a, b) => compareNames(a.tag, b.tag));
   }
 
-  /** The notes that carry a tag or a tag nested below it, leaving out excluded files. */
-  async tag(name: string): Promise<{ tag: string; files: string[] }> {
+  /**
+   * Every tag in the vault with how often it occurs, including each parent of a nested tag. Excluded files do not
+   * count.
+   */
+  async tags(): Promise<TagCount[]> {
+    return vaultTags(await this.vault());
+  }
+
+  /**
+   * A tag from the vault's tag list, named in the case the list shows it, with the notes that carry exactly this
+   * tag. The count is the one the tag list shows. Unlike the count, the notes include excluded files, as in the
+   * Obsidian CLI.
+   */
+  async tag(name: string): Promise<{ tag: string; count: number; files: string[] }> {
     const vault = await this.vault();
-    const wanted = name.replace(/^#/, "").toLowerCase();
-    const files = includedNotes(vault).filter((path) =>
-      vault.note(path).tags.some((tag) => tag.toLowerCase() === wanted || tag.toLowerCase().startsWith(`${wanted}/`)),
-    );
-    return { tag: name.replace(/^#/, ""), files };
+    const wanted = name.replace(/^#/, "");
+    const entry = vaultTags(vault).find((candidate) => candidate.tag === wanted);
+    if (!entry) throw new BackroomError("not_found", `Tag "#${wanted}" not found.`);
+    const files = vault
+      .markdownPaths()
+      .filter((path) => vault.note(path).tags.some((tag) => tag.toLowerCase() === wanted.toLowerCase()));
+    return { ...entry, files };
   }
 
   async aliases(ref?: FileRef): Promise<Alias[]> {
@@ -172,9 +172,8 @@ export class Engine {
     const path = resolveMarkdown(vault, ref);
     const seen = new Map<string, OutgoingLink>();
     for (const { link, target } of vault.outgoing(path)) {
-      if (target === path && link.target === "") continue;
       const entry = target === null ? { target: link.target, resolved: false } : { target, resolved: true };
-      seen.set(`${entry.resolved}:${entry.target.toLowerCase()}`, entry);
+      seen.set(`${entry.resolved}:${entry.target}`, entry);
     }
     return [...seen.values()].sort((a, b) => compareCodeUnits(a.target, b.target));
   }
@@ -183,23 +182,25 @@ export class Engine {
     const vault = await this.vault();
     const path = resolveRef(vault, ref);
     return [...vault.backlinks(path)]
-      .filter(([source]) => source !== path)
       .map(([file, links]) => ({ file, count: links.length }))
       .sort((a, b) => compareNames(a.file, b.file));
   }
 
+  /** Link paths that resolve to no file, named without a `.md` extension and told apart by case, like Obsidian. */
   async unresolved(): Promise<UnresolvedLink[]> {
     const vault = await this.vault();
     const result = new Map<string, UnresolvedLink>();
     for (const [source, links] of vault.allResolvedLinks()) {
       for (const { link, target } of links) {
         if (target !== null || link.target === "") continue;
-        const entry = result.get(link.target) ?? { link: link.target, count: 0, sources: [] };
+        const name = link.target.replace(/\.md$/i, "");
+        const entry = result.get(name) ?? { link: name, count: 0, sources: [] };
         entry.count++;
         if (!entry.sources.includes(source)) entry.sources.push(source);
-        result.set(link.target, entry);
+        result.set(name, entry);
       }
     }
+    for (const entry of result.values()) entry.sources.sort(compareCodeUnits);
     return [...result.values()].sort((a, b) => compareNames(a.link, b.link));
   }
 
@@ -498,6 +499,26 @@ export class Engine {
 
 /** Where a new file goes: an exact path, or a name placed by the vault's new file location setting. */
 export type FileTarget = { path: string } | { name: string };
+
+/**
+ * The vault's tags as the Obsidian CLI counts them: every occurrence in a note that is not excluded, with case
+ * variants merged under the spelling seen first. A parent of a nested tag counts the occurrences below it.
+ */
+function vaultTags(vault: Vault): TagCount[] {
+  const counts = new Map<string, TagCount>();
+  for (const path of includedNotes(vault)) {
+    for (const tag of vault.note(path).tagOccurrences) {
+      const parts = tag.split("/");
+      for (let depth = 1; depth <= parts.length; depth++) {
+        const name = parts.slice(0, depth).join("/");
+        const entry = counts.get(name.toLowerCase()) ?? { tag: name, count: 0 };
+        entry.count++;
+        counts.set(name.toLowerCase(), entry);
+      }
+    }
+  }
+  return [...counts.values()].sort((a, b) => compareNames(a.tag, b.tag));
+}
 
 /** Notes that are not hidden by Obsidian's excluded files setting. */
 function includedNotes(vault: Vault): string[] {

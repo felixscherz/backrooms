@@ -9,7 +9,7 @@ const engine = new Engine(VAULT);
 /** What the backroom executable prints for a command: the output and a final newline, like the Obsidian CLI. */
 async function backroom(args: string[]): Promise<string> {
   const { output } = await runCli(engine, parseArguments(args));
-  return output.endsWith("\n") ? output : `${output}\n`;
+  return output === "" || output.endsWith("\n") ? output : `${output}\n`;
 }
 
 describe(`answers like Obsidian ${recording.obsidian} on test-vault`, () => {

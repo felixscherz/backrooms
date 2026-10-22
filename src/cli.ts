@@ -172,12 +172,12 @@ const commands: Record<string, Command> = {
     params: ["file=<name>", "path=<path>", "total", "counts", "sort=count", "format=json|tsv|csv"],
     run: async (engine, args) => {
       const ref = args.optionalRef();
-      let tags: TagCount[] = ref ? (await engine.tagsOf(ref)).map((tag) => ({ tag, count: 1 })) : await engine.tags();
+      let tags: TagCount[] = ref ? await engine.tagsOf(ref) : await engine.tags();
       if (args.flag("total")) return String(tags.length);
       if (tags.length === 0) return "No tags found.";
       if (args.get("sort") === "count")
         tags = [...tags].sort((a, b) => b.count - a.count || compareNames(a.tag, b.tag));
-      const counts = args.flag("counts") && !ref;
+      const counts = args.flag("counts");
       const format = args.format(["tsv", "json", "csv"] as const, "tsv");
       if (format === "json") {
         return json(
@@ -194,10 +194,9 @@ const commands: Record<string, Command> = {
     summary: "Get tag info",
     params: ["name=<tag>", "total", "verbose"],
     run: async (engine, args) => {
-      const { tag, files } = await engine.tag(args.required("name"));
-      if (args.flag("total")) return String(files.length);
-      const header = `#${tag}\t${files.length}`;
-      return args.flag("verbose") ? lines([header, ...files]) : header;
+      const { tag, count, files } = await engine.tag(args.required("name"));
+      if (args.flag("total")) return String(count);
+      return args.flag("verbose") ? lines([`#${tag}\t${count}`, ...files]) : lines(files);
     },
   },
   aliases: {
@@ -246,8 +245,8 @@ const commands: Record<string, Command> = {
     run: async (engine, args) => {
       const unresolved = await engine.unresolved();
       if (args.flag("total")) return String(unresolved.length);
-      const counts = args.flag("counts");
       const verbose = args.flag("verbose");
+      const counts = args.flag("counts") || verbose;
       const format = args.format(["tsv", "json", "csv"] as const, "tsv");
       if (format === "json") {
         return json(

@@ -36,6 +36,8 @@ export type Note = {
   properties: Properties;
   /** Tags without the leading `#`, once per note in the case they first appear in. */
   tags: string[];
+  /** Every occurrence of a tag, in the order of the note: the `tags` property first, then the body. */
+  tagOccurrences: string[];
   aliases: string[];
   headings: Heading[];
   blockIds: string[];
@@ -46,16 +48,20 @@ export function parseNote(text: string): Note {
   const frontmatter = findFrontmatter(text);
   const properties = frontmatter.kind === "valid" ? parseProperties(text, frontmatter.yamlSpan) : {};
   const bodyStart = frontmatter.kind === "none" ? 0 : frontmatter.span.end;
-  const masked = maskIgnoredText(text, bodyStart);
+  // Obsidian indexes tags and links inside %% comments, but no headings or block ids there.
+  const structure = maskIgnoredText(text, bodyStart, { comments: true });
+  const indexed = maskIgnoredText(text, bodyStart, { comments: false });
+  const tagOccurrences = [...propertyTags(properties), ...inlineTags(indexed)];
 
   return {
     frontmatter,
     properties,
-    tags: uniqueIgnoringCase([...propertyTags(properties), ...inlineTags(masked)]),
+    tags: uniqueIgnoringCase(tagOccurrences),
+    tagOccurrences,
     aliases: listProperty(properties, ["aliases", "alias"]),
-    headings: findHeadings(text, masked),
-    blockIds: findBlockIds(masked),
-    links: [...propertyLinks(properties), ...bodyLinks(text, masked)],
+    headings: findHeadings(text, structure),
+    blockIds: findBlockIds(structure),
+    links: [...propertyLinks(properties), ...bodyLinks(text, indexed)],
   };
 }
 
@@ -101,10 +107,10 @@ function toJson(value: unknown): JsonValue {
 
 /**
  * Returns the text with everything Obsidian does not read as markdown structure replaced by spaces: the frontmatter,
- * fenced code blocks, inline code and `%%` comments. Newlines and offsets are kept, so matches in the masked text
- * point at the same place in the original.
+ * fenced code blocks, inline code and, with `comments`, `%%` comments. Newlines and offsets are kept, so matches in
+ * the masked text point at the same place in the original.
  */
-export function maskIgnoredText(text: string, bodyStart: number): string {
+export function maskIgnoredText(text: string, bodyStart: number, options: { comments: boolean }): string {
   const chars = text.split("");
   const blank = (start: number, end: number) => {
     for (let i = start; i < end; i++) if (chars[i] !== "\n" && chars[i] !== "\r") chars[i] = " ";
@@ -125,39 +131,43 @@ export function maskIgnoredText(text: string, bodyStart: number): string {
       fence = { char: marker[0]!, length: marker.length };
       blank(offset, lineEnd);
     } else {
-      inComment = maskInline(text, offset, lineEnd, inComment, blank);
+      inComment = maskInline(text, offset, lineEnd, inComment, blank, options.comments ? blank : () => {});
     }
     offset = lineEnd + 1;
   }
   return chars.join("");
 }
 
-/** Masks inline code and comments within one line. Returns whether a comment is still open at the end of the line. */
+/**
+ * Masks inline code within one line with `blank` and comments with `blankComment`. Returns whether a comment is
+ * still open at the end of the line.
+ */
 function maskInline(
   text: string,
   start: number,
   end: number,
   inComment: boolean,
   blank: (start: number, end: number) => void,
+  blankComment: (start: number, end: number) => void,
 ): boolean {
   let i = start;
   if (inComment) {
     const close = text.indexOf("%%", i);
     if (close === -1 || close >= end) {
-      blank(start, end);
+      blankComment(start, end);
       return true;
     }
-    blank(start, close + 2);
+    blankComment(start, close + 2);
     i = close + 2;
   }
   while (i < end) {
     if (text.startsWith("%%", i)) {
       const close = text.indexOf("%%", i + 2);
       if (close === -1 || close >= end) {
-        blank(i, end);
+        blankComment(i, end);
         return true;
       }
-      blank(i, close + 2);
+      blankComment(i, close + 2);
       i = close + 2;
     } else if (text[i] === "`") {
       let run = 0;

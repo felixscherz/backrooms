@@ -249,7 +249,7 @@ export class Vault {
     return this.resolvedLinks;
   }
 
-  /** Whether Obsidian's excluded files setting hides the file from search. */
+  /** Whether Obsidian's excluded files setting hides the file. Path prefixes match ignoring case, like in Obsidian. */
   isExcluded(path: string): boolean {
     return this.settings.userIgnoreFilters.some((filter) => {
       if (filter.length > 2 && filter.startsWith("/") && filter.endsWith("/")) {
@@ -259,7 +259,7 @@ export class Vault {
           return false;
         }
       }
-      return path.startsWith(filter);
+      return path.toLowerCase().startsWith(filter.toLowerCase());
     });
   }
 }
