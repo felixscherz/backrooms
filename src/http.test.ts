@@ -237,6 +237,19 @@ describe("signing in", () => {
     expect(response.headers.get("Content-Security-Policy")).toContain("default-src 'none'");
   });
 
+  test("the sign-in page lets the browser follow the redirect to the client after the form is sent", async () => {
+    // Browsers apply form-action to the redirect that answers a form, so the client's origin has to be allowed.
+    const server = await backroom();
+
+    const claude = await server.request(authorizeUrl(CLAUDE, pkce().challenge));
+    const claudeCode = await server.request(authorizeUrl(CLAUDE_CODE, pkce().challenge));
+    const wrong = await submitPassphrase(server, authorizeUrl(CLAUDE, pkce().challenge), "wrong");
+
+    expect(claude.headers.get("Content-Security-Policy")).toContain("form-action 'self' https://claude.ai;");
+    expect(claudeCode.headers.get("Content-Security-Policy")).toContain("form-action 'self' http://localhost:53682;");
+    expect(wrong.headers.get("Content-Security-Policy")).toContain("form-action 'self' https://claude.ai;");
+  });
+
   test("the redirect carries the code, the state and the issuer", async () => {
     const server = await backroom();
 

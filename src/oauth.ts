@@ -150,7 +150,7 @@ export class AuthorizationServer {
     while (this.pending.size >= MAX_PENDING) this.pending.delete(this.pending.keys().next().value!);
     const id = randomBytes(24).toString("base64url");
     this.pending.set(id, { client, redirectUri, codeChallenge, state, expiresAt: this.now() + PENDING_LIFETIME });
-    return page(200, signInPage({ request: id, client: hostOf(clientId), redirect: hostOf(redirectUri) }));
+    return page(200, signInPage({ request: id, client: hostOf(clientId), redirect: hostOf(redirectUri) }), redirectUri);
   }
 
   /** Takes the passphrase for a pending request and, when it is right, sends the client its authorization code. */
@@ -170,7 +170,11 @@ export class AuthorizationServer {
     }
     const view = { request: id, client: hostOf(pending.client.clientId), redirect: hostOf(pending.redirectUri) };
     if (this.now() < this.lockedUntil) {
-      return page(429, signInPage({ ...view, error: "Too many wrong passphrases. Try again later." }));
+      return page(
+        429,
+        signInPage({ ...view, error: "Too many wrong passphrases. Try again later." }),
+        pending.redirectUri,
+      );
     }
     const passphrase = form.get("passphrase") ?? "";
     if (!(await verifyPassphrase(passphrase, this.options.passphraseHash))) {
@@ -179,7 +183,7 @@ export class AuthorizationServer {
         this.failures = 0;
         this.lockedUntil = this.now() + LOCKOUT;
       }
-      return page(401, signInPage({ ...view, error: "Wrong passphrase." }));
+      return page(401, signInPage({ ...view, error: "Wrong passphrase." }), pending.redirectUri);
     }
     this.failures = 0;
     this.pending.delete(id);
@@ -411,15 +415,19 @@ function redirect(uri: string, params: Record<string, string | null>): Response 
   return new Response(null, { status: 302, headers: { Location: url.toString(), "Cache-Control": "no-store" } });
 }
 
-/** An HTML page that cannot be framed, runs no script and only submits forms to backroom itself. */
-function page(status: number, html: string): Response {
+/**
+ * An HTML page that cannot be framed, runs no script and only submits its form to backroom. Browsers also apply
+ * `form-action` to the redirect that answers the form, so a sign-in page allows the origin of the client's redirect
+ * URI, where the redirect with the code goes.
+ */
+function page(status: number, html: string, redirectUri?: string): Response {
+  const formAction = redirectUri === undefined ? "'self'" : `'self' ${new URL(redirectUri).origin}`;
   return new Response(html, {
     status,
     headers: {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": "no-store",
-      "Content-Security-Policy":
-        "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'",
+      "Content-Security-Policy": `default-src 'none'; style-src 'unsafe-inline'; form-action ${formAction}; frame-ancestors 'none'`,
       "X-Frame-Options": "DENY",
       "Referrer-Policy": "no-referrer",
     },
