@@ -3,6 +3,7 @@ import { chmod, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runGit } from "./git";
+import { VaultLock } from "./lock";
 import { tempVault, type TempVault } from "./testing/temp-vault";
 
 const cleanup: (() => Promise<void>)[] = [];
@@ -36,6 +37,25 @@ describe("commits", () => {
       "M\tIndex.md\nR100\tPizza.md\tPizza Napoletana.md",
     );
     expect(await git(vault.root, "status", "--porcelain")).toBe("");
+  });
+
+  test("writes that overlap each become their own commit", async () => {
+    const vault = await gitVault({ "Log.md": "" });
+
+    await Promise.all(Array.from({ length: 10 }, (_, i) => vault.ok("append", "path=Log.md", `content=${i}`)));
+
+    expect(await git(vault.root, "rev-list", "--count", "HEAD")).toBe("11");
+    expect(await git(vault.root, "status", "--porcelain")).toBe("");
+    const appended = await git(vault.root, "log", "--format=%s", "-10");
+    expect(appended.split("\n")).toEqual(Array(10).fill("backroom: Appended to: Log.md"));
+  });
+
+  test("the write lock lives in .git, where git never commits it and every process on the machine sees it", async () => {
+    const vault = await gitVault({ "A.md": "a" });
+
+    expect(VaultLock.of(vault.root).path).toBe(join(vault.root, ".git", "backroom.lock"));
+    await vault.ok("append", "path=A.md", "content=b");
+    expect(await git(vault.root, "status", "--porcelain", "--ignored")).toBe("");
   });
 
   test("a write that fails makes no commit and leaves the working tree clean", async () => {

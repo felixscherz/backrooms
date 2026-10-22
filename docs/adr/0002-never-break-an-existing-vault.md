@@ -21,7 +21,8 @@ directly.
   was, including line endings, whitespace, frontmatter formatting, key order and YAML comments. Properties are edited
   in place in the YAML text, never by serializing a parsed object back out.
 - **No lost updates.** Every change to an existing file names the version of the file it is based on (a content hash).
-  If the file changed since then, the write is rejected and the caller has to read it again.
+  If the file changed since then, the write is rejected and the caller has to read it again. backroom processes on
+  the same vault take turns through a lock, so one write cannot land between another's version check and its rename.
 - **All or nothing.** A change that touches several files, such as a rename that rewrites links, is planned and
   validated completely before the first write. Each file is written atomically (temporary file in the same directory,
   then rename). If applying the change fails part way, the files already written are restored.

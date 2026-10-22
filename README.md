@@ -44,7 +44,11 @@ not supported.
 Every write goes through one write path (ADR 2): only the intended bytes change, each file is replaced atomically,
 multi-file changes such as a rename roll back if they fail part way, deleted notes go to `.trash/`, and backroom never
 touches `.obsidian/` or other hidden folders. A rename or move that would make any link point at a different file is
-rejected.
+rejected. A write that fails says whether the vault was left unchanged or names the files it could not restore.
+
+Several backroom processes on one vault, such as the MCP server and a CLI run, take turns: a write holds a lock file in
+`.git/`, or in the system's temporary folder when the vault is not a git repository, while it runs. A lock left by a process that ended is taken over, and a write gives up
+with a `busy` error after waiting 10 seconds for a lock that a running process holds.
 
 ### Plugins
 

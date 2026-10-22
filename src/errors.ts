@@ -12,7 +12,9 @@ export type ErrorCode =
   /** Obsidian supports this, backroom does not. */
   | "unsupported"
   /** The disk refused a write. The message says whether the vault was left unchanged. */
-  | "write_failed";
+  | "write_failed"
+  /** Another backroom process kept the vault's write lock for too long. */
+  | "busy";
 
 /** An error the caller can act on. Its message is meant to be shown to the caller as is. */
 export class BackroomError extends Error {

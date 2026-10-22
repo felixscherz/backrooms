@@ -10,6 +10,7 @@ import {
   type PropertyValue,
   type PropertyValueType,
 } from "./frontmatter";
+import { VaultLock } from "./lock";
 import { planMove } from "./move";
 import { parseNote, type JsonValue, type Note, type Properties } from "./note";
 import { loadPlugins } from "./plugins";
@@ -52,7 +53,7 @@ export type WriteHooks = {
   afterWrite(result: WriteResult): Promise<string[]>;
 };
 
-export type EngineOptions = { git?: Git; clock?: Clock };
+export type EngineOptions = { git?: Git; clock?: Clock; lock?: VaultLock };
 
 /**
  * What a write plans: the changes, and the note it saves when the command creates or changes one, which the
@@ -69,6 +70,7 @@ export class Engine {
 
   readonly git: Git | null;
   private readonly clock: Clock;
+  private readonly lock: VaultLock;
 
   constructor(
     readonly root: string,
@@ -76,6 +78,7 @@ export class Engine {
   ) {
     this.git = options.git ?? null;
     this.clock = options.clock ?? systemClock;
+    this.lock = options.lock ?? VaultLock.of(root);
   }
 
   async vault(): Promise<Vault> {
@@ -545,9 +548,10 @@ export class Engine {
     return committed ?? new Date(vault.file(path).created);
   }
 
-  /** Runs one write or pull at a time, so two of them from this process never race each other. */
+  /** Runs one write or pull at a time, so two of them never race each other, in this process or across processes. */
   private serialized<T>(step: () => Promise<T>): Promise<T> {
-    const next = this.queue.then(step, step);
+    const locked = () => this.lock.hold(step);
+    const next = this.queue.then(locked, locked);
     this.queue = next.catch(() => {});
     return next;
   }

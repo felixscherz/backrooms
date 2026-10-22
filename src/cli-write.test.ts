@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { chmod, mkdir, readdir, stat } from "node:fs/promises";
+import { chmod, mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
+import { parseArguments, runCli } from "./cli";
+import { Engine } from "./engine";
+import { VaultLock } from "./lock";
 import { tempVault, type TempVault } from "./testing/temp-vault";
 import { contentVersion } from "./vault";
 import { applyChanges } from "./write";
@@ -457,6 +460,84 @@ describe("a write that fails part way", () => {
     expect(result.output).toStartWith("Error: The write failed and was undone, so the vault is unchanged: EACCES");
     expect(result.output).not.toContain(vault.root);
     expect(await vault.snapshot()).toEqual(before);
+  });
+});
+
+describe("concurrent writes", () => {
+  test("writes that overlap all land, and a rename among them keeps every link pointing at its note", async () => {
+    const vault = await vaultWith({ "Log.md": "---\nstatus: new\n---\n", "Pizza.md": "# Pizza\n" });
+
+    const results = await Promise.all([
+      ...Array.from({ length: 30 }, (_, i) => vault.run("append", "path=Log.md", `content=entry ${i} [[Pizza]]`)),
+      ...Array.from({ length: 10 }, (_, i) => vault.run("property:set", "path=Log.md", `name=p${i}`, `value=${i}`)),
+      vault.run("rename", "path=Pizza.md", "name=Pizza Napoletana"),
+    ]);
+
+    expect(results.filter((result) => result.exitCode !== 0)).toEqual([]);
+    const log = await vault.read("Log.md");
+    for (let i = 0; i < 30; i++) expect(log).toContain(`entry ${i} [[`);
+    for (let i = 0; i < 10; i++) expect(await vault.ok("property:read", "path=Log.md", `name=p${i}`)).toBe(String(i));
+    expect(await vault.ok("unresolved")).toBe("");
+    expect(await vault.ok("backlinks", "path=Pizza Napoletana.md", "counts")).toBe("Log.md\t30");
+  });
+
+  test("of two writes based on the same version, one lands and the other is refused as a conflict", async () => {
+    const vault = await vaultWith({ "A.md": "a" });
+    const version = contentVersion("a");
+
+    const results = await Promise.all([
+      vault.run("append", "path=A.md", "content=first", `version=${version}`),
+      vault.run("append", "path=A.md", "content=second", `version=${version}`),
+    ]);
+
+    expect(results.map((result) => result.exitCode).sort()).toEqual([0, 1]);
+    expect(results.find((result) => result.exitCode === 1)!.output).toContain("changed since version");
+    expect(["a\nfirst", "a\nsecond"]).toContain(await vault.read("A.md"));
+  });
+
+  test("two servers on the same vault take turns, so no write is lost", async () => {
+    const vault = await vaultWith({ "Log.md": "" });
+    const other = new Engine(vault.root);
+    const runOther = (...argv: string[]) => runCli(other, parseArguments(argv));
+
+    const results = await Promise.all(
+      Array.from({ length: 40 }, (_, i) =>
+        (i % 2 === 0 ? vault.run : runOther)("append", "path=Log.md", `content=${i}`),
+      ),
+    );
+
+    expect(results.filter((result) => result.exitCode !== 0)).toEqual([]);
+    const entries = (await vault.read("Log.md")).split("\n").map(Number);
+    expect(entries.sort((a, b) => a - b)).toEqual(Array.from({ length: 40 }, (_, i) => i));
+  });
+
+  test("a lock left behind by a process that ended is taken over", async () => {
+    const vault = await vaultWith({ "A.md": "a" });
+    const ended = Bun.spawn(["true"]);
+    await ended.exited;
+    await writeFile(VaultLock.of(vault.root).path, String(ended.pid));
+
+    await vault.ok("append", "path=A.md", "content=b");
+
+    expect(await vault.read("A.md")).toBe("a\nb");
+  });
+
+  test("a write gives up when another process keeps the lock, and says how to recover", async () => {
+    const vault = await vaultWith({ "A.md": "a" });
+    const lock = VaultLock.of(vault.root);
+    await writeFile(lock.path, String(process.pid));
+    try {
+      const engine = new Engine(vault.root, { lock: new VaultLock(lock.path, 50) });
+
+      const result = await runCli(engine, parseArguments(["append", "path=A.md", "content=b"]));
+
+      expect(result.output).toBe(
+        `Error: Another backroom process has been writing to the vault for over 0.05 seconds. Retry later, or remove ${lock.path} if no backroom process is running.`,
+      );
+      expect(await vault.read("A.md")).toBe("a");
+    } finally {
+      await rm(lock.path);
+    }
   });
 });
 
