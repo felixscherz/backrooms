@@ -48,8 +48,14 @@ async function main(argv: string[]): Promise<number> {
   }
   const engine = new Engine(root, isRepository ? { git: new Git(root, mode) } : {});
   if (invocation.command === "mcp") {
+    const interval = env("BACKROOM_PULL_INTERVAL") ?? "60";
+    const seconds = Number(interval);
+    if (!(seconds > 0)) {
+      console.log(`Error: BACKROOM_PULL_INTERVAL must be a positive number of seconds, not "${interval}".`);
+      return 1;
+    }
     const { serveStdio } = await import("./mcp");
-    await serveStdio(engine);
+    await serveStdio(engine, seconds * 1000);
     return 0;
   }
   const result = await runCli(engine, invocation);

@@ -72,6 +72,8 @@ cannot do the same way, such as a date format with month names, writes fail with
 | `commit` | Every write becomes one commit of exactly the files it touched. |
 | `sync` | Also fetches and rebases before each write and every minute in the MCP server, and pushes after each commit. |
 
+`BACKROOM_PULL_INTERVAL` sets how many seconds the MCP server waits between pulls in `sync` mode (default 60).
+
 A rebase that conflicts is aborted. backroom keeps its local commits, stops syncing and reports it in `git:status` and
 as a warning after each write, until a human resolves it.
 

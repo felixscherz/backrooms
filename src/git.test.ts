@@ -1,9 +1,8 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { chmod, mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { chmod } from "node:fs/promises";
 import { join } from "node:path";
-import { runGit } from "./git";
 import { VaultLock } from "./lock";
+import { git, gitRemote } from "./testing/git-remote";
 import { tempVault, type TempVault } from "./testing/temp-vault";
 
 const cleanup: (() => Promise<void>)[] = [];
@@ -16,12 +15,6 @@ async function gitVault(files: Record<string, string>, mode: "commit" | "sync" =
   const vault = await tempVault(files, {}, { git: mode });
   cleanup.push(() => vault.remove());
   return vault;
-}
-
-async function git(root: string, ...args: string[]): Promise<string> {
-  const result = await runGit(root, ["-c", "user.name=test", "-c", "user.email=test@localhost", ...args]);
-  if (result.exitCode !== 0) throw new Error(`git ${args.join(" ")}: ${result.stderr}`);
-  return result.stdout.trim();
 }
 
 describe("commits", () => {
@@ -138,23 +131,14 @@ describe("revert", () => {
 describe("sync", () => {
   async function withRemote(files: Record<string, string>) {
     const vault = await gitVault(files, "sync");
-    const remote = await mkdtemp(join(tmpdir(), "backroom-remote-"));
-    const other = await mkdtemp(join(tmpdir(), "backroom-other-"));
-    cleanup.push(() => rm(remote, { recursive: true, force: true }));
-    cleanup.push(() => rm(other, { recursive: true, force: true }));
-    await git(remote, "init", "--quiet", "--bare");
-    await git(vault.root, "remote", "add", "origin", remote);
-    await git(vault.root, "push", "--quiet", "-u", "origin", "HEAD");
-    await git(other, "clone", "--quiet", remote, ".");
-    return { vault, other };
+    const remote = await gitRemote(vault.root);
+    cleanup.push(() => remote.remove());
+    return { vault, other: remote.other, remote };
   }
 
   test("a write pulls first and pushes its commit", async () => {
-    const { vault, other } = await withRemote({ "A.md": "a\n" });
-    await Bun.write(join(other, "Phone.md"), "from the laptop");
-    await git(other, "add", "-A");
-    await git(other, "commit", "--quiet", "-m", "vault backup");
-    await git(other, "push", "--quiet");
+    const { vault, other, remote } = await withRemote({ "A.md": "a\n" });
+    await remote.pushFromOther("Phone.md", "from the laptop");
 
     await vault.ok("append", "path=A.md", "content=b");
 
