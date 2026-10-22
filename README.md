@@ -34,8 +34,8 @@ not supported.
 ### Commands backrooms adds
 
 - `edit path=<path> old=<text> new=<text> [all]` replaces an exact piece of text. The text has to occur exactly once
-  unless `all` is set. A remote agent cannot edit files itself, so this replaces the file edits the `second-brain`
-  skill makes on the laptop.
+  unless `all` is set. A remote agent cannot edit files itself, so this replaces the file edits an agent makes on a
+  local vault.
 - `file path=<path>` prints a `version`. Pass it as `version=<version>` to `edit`, `append`, `prepend`, `delete` or
   `create ... overwrite` and the write is rejected if the file changed since. `create ... overwrite` requires it.
 - `git:status`, `git:log [limit=<n>] [path=<path>]`, `git:show commit=<id>` and `git:revert commit=<id>` let an agent
@@ -139,3 +139,7 @@ The tests drive the CLI against temporary vaults on disk, and the git tests use 
 answers recorded with `bun compat/record.ts` (see [docs/compatibility.md](docs/compatibility.md)).
 `compat/linter.test.ts` does the same for the Linter plugin on `compat/linter-vault/`, recorded with
 `bun compat/record-linter.ts`.
+
+## License
+
+[MIT](LICENSE)

@@ -1,13 +1,13 @@
 # Obsidian CLI coverage
 
-Which Obsidian CLI features backrooms needs, taken from what the `second-brain` skill uses today. The skill's
-references (`search.md`, `write.md`, `curate.md`, `maintain.md`, `conventions.md`) list the commands below.
+Which Obsidian CLI features backrooms needs, taken from what agent skills for an Obsidian vault use to search, write,
+curate and maintain notes.
 
 Every command takes `vault=<name>`. backrooms serves one vault, so it can accept and ignore that parameter or drop it.
 
 [compatibility.md](compatibility.md) tracks what backrooms implements so far and how closely it matches Obsidian.
 
-## Commands the skill calls
+## Commands skills call
 
 | Command | Parameters used | Used for |
 | --- | --- | --- |
@@ -29,31 +29,31 @@ Every command takes `vault=<name>`. backrooms serves one vault, so it can accept
 | `move` | `path`, `to` | moving a note and updating links |
 | `property:set` | `path`, `name`, `value`, `type` | setting one frontmatter property |
 
-## Operations the skill does outside the CLI
+## Operations skills do outside the CLI
 
-On the laptop the agent has the vault on disk and does these with its own file tools. A remote agent only has backrooms,
-so backrooms has to offer them.
+With Obsidian running locally, the agent has the vault on disk and does these with its own file tools. A remote agent
+only has backrooms, so backrooms has to offer them.
 
 - **Editing part of a note.** Curation and review sessions make "small, precise file edits", for example replacing a
   passage or adding a `## Related` section. backrooms needs an edit operation that replaces an exact range or string,
   checked against the file version per ADR 2.
 - **Deleting a note.** Review sessions delete worthless notes and merged duplicates. backrooms moves them to `.trash/`
   per ADR 2.
-- **Picking review seeds.** `scripts/pick_review.py` reads every root-level note to score it by `#inbox`,
-  `#temporal-notes`, orphan status and age. Either backrooms offers this as an operation, or it offers queries rich
-  enough (properties, tags, orphans, modification dates) for an agent to do the scoring itself.
-- **Fallback to `rg`.** The skill falls back to `rg` when Obsidian is not running. With backrooms there is nothing to
+- **Picking review seeds.** A script reads every note to score it by tags such as `#inbox`, orphan status and age.
+  Either backrooms offers this as an operation, or it offers queries rich enough (properties, tags, orphans,
+  modification dates) for an agent to do the scoring itself.
+- **Fallback to `rg`.** Skills fall back to `rg` when Obsidian is not running. With backrooms there is nothing to
   fall back to, so its search has to cover what `rg` was used for.
 
 ## Not covered
 
 - **Linting with `open` and `command id=obsidian-linter:lint-file`.** This runs the Linter community plugin inside the
   app. backrooms does not offer the command, but applies the Linter rules it reimplements to every note it saves (ADR 7).
-  The skill has to skip linting when it talks to backrooms.
+  A skill has to skip linting when it talks to backrooms.
 
 ## Needed for the example requests
 
-The example requests in [vision.md](vision.md) need some things the skill does not use yet.
+The example requests in [vision.md](vision.md) need some things the commands above do not cover.
 
 - "What notes did I create yesterday?" is a search that compares `date_created`, which the Linter plugin writes, the
   way Obsidian's search does: `search query="[date_created:>2026-10-21] [date_created:<2026-10-22]"`.

@@ -20,7 +20,7 @@ for word counting and sort order. It is opened in Obsidian as the vault `test-va
 The recording was made with Obsidian 1.13.7 (installer 1.12.7). After an Obsidian update, record again and the test
 shows what changed. To pin down a new behavior, add a note to test-vault and the command to one of the lists.
 
-Some behaviors were also checked on a copy of the personal vault, which has about 870 files: the tag list with its
+Some behaviors were also checked on a copy of a real vault with about 870 files: the tag list with its
 counts matches exactly, and so do the word counts of 53 notes.
 
 ## Commands
@@ -41,7 +41,7 @@ The Linter's `yaml-timestamp` rule (ADR 7) follows the Linter source, including 
 Linter lints on save, on leaving a note or as a note changes, and never in the folders and files it ignores.
 
 It is checked against the real Linter on a second vault, [compat/linter-vault/](../compat/linter-vault/), opened in
-Obsidian as `linter-vault`. Its Linter settings are those of the personal vault, plus a folder and a file pattern to
+Obsidian as `linter-vault`. Its Linter settings are those of a real vault, plus a folder and a file pattern to
 ignore, and only `yaml-timestamp` is enabled. Only the settings are part of the repository; the recorder installs the
 plugin itself.
 
