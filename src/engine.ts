@@ -27,13 +27,18 @@ import {
   stem,
   validateFileName,
 } from "./paths";
+import { applyNoteChanges, type NoteChange } from "./note-changes";
 import { matchFile, parseQuery, type FileMatch } from "./search";
-import { Vault, type PropertyType, type VaultFile } from "./vault";
+import { findSection } from "./section";
+import { contentVersion, Vault, type PropertyType, type VaultFile } from "./vault";
 import type { CommitChange, Git } from "./git";
 import { applyChanges, TRASH_FOLDER, type AppliedChange, type Change } from "./write";
 
-/** How a command names a file: `path=` is the exact vault path, `file=` resolves like a wikilink. */
-export type FileRef = { path: string } | { file: string };
+/**
+ * How a caller names a file. In the CLI, `path=` is the exact vault path and `file=` resolves like a wikilink. MCP
+ * tools take `note`, which is a path when one matches and else a name, and fails when a name matches several notes.
+ */
+export type FileRef = { path: string } | { file: string } | { note: string };
 
 export type OutlineHeading = { level: number; heading: string; line: number };
 export type TagCount = { tag: string; count: number };
@@ -42,9 +47,33 @@ export type Backlink = { file: string; count: number };
 export type Alias = { alias: string; path: string };
 export type UnresolvedLink = { link: string; count: number; sources: string[] };
 export type PropertyCount = { name: string; type: PropertyType | "unknown"; count: number };
+export type SearchMatch = FileMatch & { modified: number };
+
+/** What a read of a note can return besides its version and modification time. */
+export type NoteDetail = "content" | "outline" | "properties" | "links" | "backlinks";
+
+export type NoteReading = {
+  path: string;
+  version: string;
+  modified: number;
+  /** The note's text, or the section's text when a section was asked for. */
+  content?: string;
+  section?: { heading: string; line: number };
+  outline?: OutlineHeading[];
+  properties?: Properties;
+  links?: OutgoingLink[];
+  backlinks?: Backlink[];
+};
 
 /** A write that was applied, described for the caller and for the commit that records it. */
-export type WriteResult = { operation: string; summary: string; changes: AppliedChange[]; warnings: string[] };
+export type WriteResult = {
+  operation: string;
+  summary: string;
+  changes: AppliedChange[];
+  warnings: string[];
+  /** The note the write created, changed or moved, where it is now and its version after the write. */
+  note?: { path: string; version: string };
+};
 
 /** What happens around every write, such as pulling before and committing after (ADR 6). */
 export type WriteHooks = {
@@ -59,7 +88,7 @@ export type EngineOptions = { git?: Git; clock?: Clock; lock?: VaultLock };
  * What a write plans: the changes, and the note it saves when the command creates or changes one, which the
  * vault's plugins see (ADR 7). Notes changed as a side effect, such as links a rename updates, are not saved.
  */
-type Plan = { operation: string; summary: string; changes: Change[]; saved?: string };
+type Plan = { operation: string; summary: string; changes: Change[]; saved?: string; note?: string };
 
 /**
  * The vault engine. Every operation of the CLI and the MCP server exists here once. Reads load a fresh picture of
@@ -69,7 +98,7 @@ export class Engine {
   private queue: Promise<unknown> = Promise.resolve();
 
   readonly git: Git | null;
-  private readonly clock: Clock;
+  readonly clock: Clock;
   private readonly lock: VaultLock;
 
   constructor(
@@ -93,6 +122,25 @@ export class Engine {
     return { path, text: textOf(vault, path), version: vault.version(path) };
   }
 
+  /**
+   * Reads several notes from one picture of the vault. A note that cannot be read gets its error in place of the
+   * reading, so the others are still returned. With `section`, the content is the text under that heading.
+   */
+  async readNotes(
+    refs: FileRef[],
+    options: { section?: string; include: ReadonlySet<NoteDetail> },
+  ): Promise<(NoteReading | { error: BackroomsError })[]> {
+    const vault = await this.vault();
+    return refs.map((ref) => {
+      try {
+        return readNote(vault, resolveMarkdown(vault, ref), options);
+      } catch (error) {
+        if (error instanceof BackroomsError) return { error };
+        throw error;
+      }
+    });
+  }
+
   async fileInfo(ref: FileRef): Promise<VaultFile & { version: string | null }> {
     const vault = await this.vault();
     const path = resolveRef(vault, ref);
@@ -101,10 +149,7 @@ export class Engine {
 
   async outline(ref: FileRef): Promise<OutlineHeading[]> {
     const vault = await this.vault();
-    const path = resolveMarkdown(vault, ref);
-    return vault
-      .note(path)
-      .headings.map((heading) => ({ level: heading.level, heading: heading.text, line: heading.line + 1 }));
+    return outlineOf(vault, resolveMarkdown(vault, ref));
   }
 
   /** A note's properties and their YAML as written, or null when it has no frontmatter Obsidian can read. */
@@ -196,21 +241,12 @@ export class Engine {
    */
   async links(ref: FileRef): Promise<OutgoingLink[]> {
     const vault = await this.vault();
-    const path = resolveMarkdown(vault, ref);
-    const seen = new Map<string, OutgoingLink>();
-    for (const { link, target } of vault.outgoing(path)) {
-      const entry = target === null ? { target: link.target, resolved: false } : { target, resolved: true };
-      seen.set(`${entry.resolved}:${entry.target}`, entry);
-    }
-    return [...seen.values()].sort((a, b) => compareCodeUnits(a.target, b.target));
+    return linksOf(vault, resolveMarkdown(vault, ref));
   }
 
   async backlinks(ref: FileRef): Promise<Backlink[]> {
     const vault = await this.vault();
-    const path = resolveRef(vault, ref);
-    return [...vault.backlinks(path)]
-      .map(([file, links]) => ({ file, count: links.length }))
-      .sort((a, b) => compareNames(a.file, b.file));
+    return backlinksOf(vault, resolveRef(vault, ref));
   }
 
   /** Link paths that resolve to no file, named without a `.md` extension and told apart by case, like Obsidian. */
@@ -258,14 +294,16 @@ export class Engine {
 
   // Listing and search
 
-  async files(options: { folder?: string; ext?: string }): Promise<VaultFile[]> {
+  /** Files at or below `folder`, sorted by name, or with `modified` the most recently changed first. */
+  async files(options: { folder?: string; ext?: string; sort?: "name" | "modified" }): Promise<VaultFile[]> {
     const vault = await this.vault();
     const folder = options.folder === undefined ? undefined : normalizeFolder(options.folder);
     const ext = options.ext?.replace(/^\./, "").toLowerCase();
-    return vault.files().filter((file) => {
+    const files = vault.files().filter((file) => {
       if (folder !== undefined && folder !== "" && !file.path.startsWith(`${folder}/`)) return false;
       return ext === undefined || extension(file.path).toLowerCase() === ext;
     });
+    return options.sort === "modified" ? files.sort((a, b) => b.modified - a.modified) : files;
   }
 
   /** Folders at or below `folder`, the vault root (`""`) included when there is no filter. */
@@ -278,16 +316,16 @@ export class Engine {
   async search(
     query: string,
     options: { folder?: string; limit?: number; caseSensitive?: boolean },
-  ): Promise<FileMatch[]> {
+  ): Promise<SearchMatch[]> {
     const vault = await this.vault();
     const searchOptions = { caseSensitive: options.caseSensitive ?? false };
     const parsed = parseQuery(query, searchOptions);
     const folder = options.folder === undefined ? "" : normalizeFolder(options.folder);
-    const matches: FileMatch[] = [];
+    const matches: SearchMatch[] = [];
     for (const path of includedNotes(vault)) {
       if (folder !== "" && !path.startsWith(`${folder}/`)) continue;
       const match = matchFile(parsed, { path, text: vault.text(path), note: vault.note(path) }, searchOptions);
-      if (match) matches.push(match);
+      if (match) matches.push({ ...match, modified: vault.file(path).modified });
       if (options.limit !== undefined && matches.length >= options.limit) break;
     }
     return matches;
@@ -323,10 +361,15 @@ export class Engine {
     content: string;
     overwrite?: boolean;
     version?: string;
+    /** Fails when the path is taken, instead of picking a free name. */
+    failIfExists?: boolean;
   }): Promise<WriteResult> {
     return this.write(async (vault) => {
       const path = newFilePath(vault, options.target);
       const existing = vault.fileIgnoringCase(path);
+      if (existing && options.failIfExists) {
+        throw new BackroomsError("already_exists", `"${existing.path}" already exists. Change it with edit instead.`);
+      }
       if (existing && !options.overwrite) {
         const free = freePath(vault, path);
         return {
@@ -413,6 +456,15 @@ export class Engine {
     });
   }
 
+  /** Applies several changes to a note as one write, so either all of them land, in one commit, or none. */
+  async editNote(ref: FileRef, changes: NoteChange[], options: { version?: string } = {}): Promise<WriteResult> {
+    if (changes.length === 0) throw new BackroomsError("invalid_argument", "Give at least one change.");
+    return this.modify(ref, "edit", options.version, (text, path, vault) => ({
+      text: applyNoteChanges(text, changes, vault.settings.propertyTypes),
+      summary: `Edited: ${path} (${changes.length} ${changes.length === 1 ? "change" : "changes"})`,
+    }));
+  }
+
   async propertySet(ref: FileRef, name: string, rawValue: string, type?: PropertyValueType): Promise<WriteResult> {
     if (name.trim() === "") throw new BackroomsError("invalid_argument", "Property name must not be empty.");
     return this.modify(ref, "property:set", undefined, (text, path, vault) => {
@@ -456,6 +508,34 @@ export class Engine {
       const fileName = ext !== "" && extension(name).toLowerCase() !== ext.toLowerCase() ? `${name}.${ext}` : name;
       const to = join(dirname(from), fileName);
       return { operation: "rename", summary: `Renamed: ${from} -> ${to}`, changes: planMove(vault, from, to) };
+    });
+  }
+
+  /**
+   * Moves a note to another folder, gives it another name, or both, and updates links to it. A name without an
+   * extension keeps the note's extension.
+   */
+  async relocate(ref: FileRef, target: { folder?: string; name?: string; version?: string }): Promise<WriteResult> {
+    if (target.folder === undefined && target.name === undefined) {
+      throw new BackroomsError("invalid_argument", "Give a folder, a name, or both.");
+    }
+    return this.write(async (vault) => {
+      const from = resolveRef(vault, ref);
+      if (target.version !== undefined) checkVersion(vault, from, target.version);
+      const folder = target.folder === undefined ? dirname(from) : normalizeFolder(target.folder);
+      let name = basename(from);
+      if (target.name !== undefined) {
+        if (target.name.includes("/"))
+          throw new BackroomsError("invalid_argument", "A name cannot contain a folder. Give the folder apart.");
+        const ext = extension(from);
+        name =
+          ext !== "" && extension(target.name).toLowerCase() !== ext.toLowerCase()
+            ? `${target.name}.${ext}`
+            : target.name;
+      }
+      const to = join(folder, name);
+      if (to === from) throw new BackroomsError("invalid_argument", `"${from}" is already there.`);
+      return { operation: "move", summary: `Moved: ${from} -> ${to}`, changes: planMove(vault, from, to), note: to };
     });
   }
 
@@ -516,10 +596,15 @@ export class Engine {
     return this.serialized(async () => {
       await this.git?.beforeWrite();
       const vault = await this.vault();
-      const { saved, ...planned } = await plan(vault);
+      const { saved, note, ...planned } = await plan(vault);
       const toApply = saved === undefined ? planned.changes : await this.save(vault, planned.changes, saved);
       const changes = await applyChanges(this.root, toApply, (path) => vault.diskPath(path));
       const result: WriteResult = { ...planned, changes, warnings: [] };
+      const changed = note ?? saved;
+      if (changed !== undefined) {
+        const version = versionAfter(vault, toApply, changed);
+        if (version !== null) result.note = { path: changed, version };
+      }
       if (changes.length > 0 && this.git) result.warnings = await this.git.afterWrite(result);
       return result;
     });
@@ -592,7 +677,63 @@ function includedNotes(vault: Vault): string[] {
   return vault.markdownPaths().filter((path) => !vault.isExcluded(path));
 }
 
+function readNote(
+  vault: Vault,
+  path: string,
+  options: { section?: string; include: ReadonlySet<NoteDetail> },
+): NoteReading {
+  const reading: NoteReading = { path, version: vault.version(path), modified: vault.file(path).modified };
+  const { include } = options;
+  if (options.section !== undefined) {
+    const section = findSection(vault.text(path), vault.note(path).headings, options.section, path);
+    reading.section = { heading: section.heading, line: section.line };
+    if (include.has("content")) reading.content = section.text;
+  } else if (include.has("content")) {
+    reading.content = vault.text(path);
+  }
+  if (include.has("properties")) reading.properties = vault.note(path).properties;
+  if (include.has("outline")) reading.outline = outlineOf(vault, path);
+  if (include.has("links")) reading.links = linksOf(vault, path);
+  if (include.has("backlinks")) reading.backlinks = backlinksOf(vault, path);
+  return reading;
+}
+
+function outlineOf(vault: Vault, path: string): OutlineHeading[] {
+  return vault
+    .note(path)
+    .headings.map((heading) => ({ level: heading.level, heading: heading.text, line: heading.line + 1 }));
+}
+
+function linksOf(vault: Vault, path: string): OutgoingLink[] {
+  const seen = new Map<string, OutgoingLink>();
+  for (const { link, target } of vault.outgoing(path)) {
+    const entry = target === null ? { target: link.target, resolved: false } : { target, resolved: true };
+    seen.set(`${entry.resolved}:${entry.target}`, entry);
+  }
+  return [...seen.values()].sort((a, b) => compareCodeUnits(a.target, b.target));
+}
+
+function backlinksOf(vault: Vault, path: string): Backlink[] {
+  return [...vault.backlinks(path)]
+    .map(([file, links]) => ({ file, count: links.length }))
+    .sort((a, b) => compareNames(a.file, b.file));
+}
+
+/** The version a note has after the changes, or null when it is not a note backrooms reads. */
+function versionAfter(vault: Vault, changes: Change[], path: string): string | null {
+  for (const change of [...changes].reverse()) {
+    if ((change.kind === "create" || change.kind === "modify") && change.path === path)
+      return contentVersion(change.text);
+    if (change.kind === "move" && change.to === path) {
+      if (change.text !== undefined) return contentVersion(change.text);
+      return vault.entry(change.from)?.text == null ? null : vault.version(change.from);
+    }
+  }
+  return vault.entry(path)?.text == null ? null : vault.version(path);
+}
+
 function resolveRef(vault: Vault, ref: FileRef): string {
+  if ("note" in ref) return resolveNote(vault, ref.note);
   if ("path" in ref) {
     const path = normalize(ref.path.normalize("NFC"));
     if (path !== null && path !== "" && !vault.entry(path) && vault.folders().includes(path)) {
@@ -602,6 +743,29 @@ function resolveRef(vault: Vault, ref: FileRef): string {
     return path;
   }
   return vault.resolveName(ref.file);
+}
+
+/**
+ * Resolves the `note` argument of the MCP tools: a path of the vault, with or without `.md`, wins. Else it is a
+ * name resolved like a wikilink, and a name that several notes match is an error that lists them.
+ */
+function resolveNote(vault: Vault, note: string): string {
+  const path = normalize(note.normalize("NFC"));
+  if (path === null || path === "") throw fileNotFound(note);
+  const exact = vault.exact(path);
+  if (exact) return exact;
+  if (vault.folders().some((folder) => folder.toLowerCase() === path.toLowerCase())) {
+    throw new BackroomsError("invalid_argument", `"${path}" is a folder, not a note.`);
+  }
+  const candidates = vault.endingWith(path);
+  if (candidates.length === 0) throw fileNotFound(note);
+  if (candidates.length > 1) {
+    throw new BackroomsError(
+      "invalid_argument",
+      `"${note}" matches ${candidates.length} notes: ${candidates.sort(compareNames).join(", ")}. Name one by its path.`,
+    );
+  }
+  return candidates[0]!;
 }
 
 function resolveMarkdown(vault: Vault, ref: FileRef): string {

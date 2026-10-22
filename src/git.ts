@@ -1,3 +1,4 @@
+import { systemClock, type Clock } from "./clock";
 import { BackroomsError } from "./errors";
 import type { WriteResult } from "./engine";
 
@@ -29,14 +30,38 @@ const LEGACY_OPERATION_TRAILER = "Backroom-Operation";
 
 const FALLBACK_IDENTITY = ["-c", "user.name=backrooms", "-c", "user.email=backrooms@localhost"];
 
+/** A commit as the history shows it. `id` is the abbreviated hash. */
+export type Commit = { id: string; time: Date; author: string; message: string };
+
+export type CommitDetails = Commit & {
+  files: { path: string; status: "added" | "modified" | "deleted" | "renamed" | "other" }[];
+  patch: string;
+};
+
+/** Where syncing stands: when it last pulled and pushed, and what is not committed or pushed yet. */
+export type SyncState = {
+  mode: GitMode;
+  /** Why sync stopped, until a human resolves it. */
+  stopped: string | null;
+  lastPull: Date | null;
+  lastPush: Date | null;
+  /** Files that differ from the last commit. */
+  uncommitted: string[];
+  /** Commits the remote does not have yet, or null without an upstream branch. */
+  unpushed: number | null;
+};
+
 export class Git {
   /** Set when a sync failed in a way a human has to resolve. Writes keep working locally in the meantime. */
   private blocked: string | null = null;
+  private lastPull: Date | null = null;
+  private lastPush: Date | null = null;
 
   constructor(
     private readonly root: string,
     readonly mode: GitMode,
     private readonly run: GitRunner = runGit,
+    private readonly clock: Clock = systemClock,
   ) {}
 
   /** Brings in changes from the remote before a write, so the write is planned against the latest vault. */
@@ -44,6 +69,7 @@ export class Git {
     if (this.mode !== "sync" || this.blocked) return;
     const failure = await this.pullRebase();
     if (failure) this.blocked = failure;
+    else this.lastPull = this.clock.now();
   }
 
   /**
@@ -81,6 +107,71 @@ export class Git {
     const lines = [status.trimEnd()];
     lines.push(`sync: ${this.mode}${this.blocked ? ` (stopped: ${this.blocked})` : ""}`);
     return lines.join("\n");
+  }
+
+  async syncState(): Promise<SyncState> {
+    const status = await this.check(["status", "--porcelain=v1", "-z", "--untracked-files=all"]);
+    const uncommitted: string[] = [];
+    const fields = status.split("\0").filter((field) => field !== "");
+    for (let i = 0; i < fields.length; i++) {
+      uncommitted.push(fields[i]!.slice(3));
+      // A rename lists its original path in the next field.
+      if (/^[RC]/.test(fields[i]!)) i++;
+    }
+    const ahead = await this.run(this.root, ["rev-list", "--count", "@{upstream}..HEAD"]);
+    return {
+      mode: this.mode,
+      stopped: this.blocked,
+      lastPull: this.lastPull,
+      lastPush: this.lastPush,
+      uncommitted,
+      unpushed: ahead.exitCode === 0 ? Number(ahead.stdout.trim()) : null,
+    };
+  }
+
+  /** The latest commits, newest first, optionally only those that changed one file, following renames. */
+  async commits(options: { limit: number; path?: string }): Promise<Commit[]> {
+    const args = ["log", `--max-count=${options.limit}`, "--format=%h%x1f%aI%x1f%an%x1f%s%x1e"];
+    if (options.path !== undefined) args.push("--follow", "--", options.path);
+    const log = await this.run(this.root, args);
+    // A repository without commits has no history yet.
+    if (log.exitCode !== 0 && /does not have any commits/.test(log.stderr)) return [];
+    if (log.exitCode !== 0) throw new BackroomsError("invalid_argument", `git log failed: ${firstLine(log.stderr)}`);
+    return log.stdout
+      .split("\x1e")
+      .map((record) => record.trim())
+      .filter((record) => record !== "")
+      .map((record) => {
+        const [id, time, author, message] = record.split("\x1f") as [string, string, string, string];
+        return { id, time: new Date(time), author, message };
+      });
+  }
+
+  async commitDetails(commit: string): Promise<CommitDetails> {
+    const sha = validCommit(commit);
+    const header = await this.check(["show", "--no-patch", "--format=%h%x1f%aI%x1f%an%x1f%B", sha]);
+    const [id, time, author, message] = header.split("\x1f") as [string, string, string, string];
+    const names = await this.check(["show", "--format=", "--name-status", "-z", sha]);
+    const fields = names.split("\0").filter((field) => field !== "");
+    const files: CommitDetails["files"] = [];
+    for (let i = 0; i < fields.length; i++) {
+      const code = fields[i]![0];
+      const status =
+        code === "A"
+          ? "added"
+          : code === "M"
+            ? "modified"
+            : code === "D"
+              ? "deleted"
+              : code === "R"
+                ? "renamed"
+                : "other";
+      // A rename or copy lists the old and the new path, and the file is where it is now.
+      if (code === "R" || code === "C") i++;
+      files.push({ path: fields[++i]!, status });
+    }
+    const patch = await this.check(["show", "--format=", "--patch", sha]);
+    return { id, time: new Date(time), author, message: message.trim(), files, patch: patch.trimEnd() };
   }
 
   async log(options: { limit: number; path?: string }): Promise<string> {
@@ -136,14 +227,20 @@ export class Git {
   private async push(): Promise<string[]> {
     if (this.blocked) return [`Not pushed, sync is stopped: ${this.blocked}`];
     let push = await this.run(this.root, ["push", "--quiet"]);
-    if (push.exitCode === 0) return [];
+    if (push.exitCode === 0) {
+      this.lastPush = this.clock.now();
+      return [];
+    }
     const failure = await this.pullRebase();
     if (failure) {
       this.blocked = failure;
       return [`Not pushed, sync is stopped until a human resolves it: ${failure}`];
     }
+    this.lastPull = this.clock.now();
     push = await this.run(this.root, ["push", "--quiet"]);
-    return push.exitCode === 0 ? [] : [`Not pushed: ${firstLine(push.stderr)}`];
+    if (push.exitCode !== 0) return [`Not pushed: ${firstLine(push.stderr)}`];
+    this.lastPush = this.clock.now();
+    return [];
   }
 
   private async commit(args: string[]): Promise<GitResult> {

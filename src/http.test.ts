@@ -157,7 +157,7 @@ describe("discovery", () => {
   test("the MCP endpoint answers without a token with 401 and points to its metadata", async () => {
     const server = await backrooms();
 
-    const response = await callTool(server, null, "read", { path: "Pizza.md" });
+    const response = await callTool(server, null, "read", { notes: "Pizza.md" });
 
     expect(response.status).toBe(401);
     expect(response.headers.get("WWW-Authenticate")).toBe(
@@ -205,11 +205,11 @@ describe("signing in", () => {
     const server = await backrooms();
 
     const tokens = await signIn(server);
-    const response = await callTool(server, tokens.access_token, "read", { path: "Pizza.md" });
+    const response = await callTool(server, tokens.access_token, "read", { notes: "Pizza.md" });
 
     expect(tokens.expires_in).toBe(3600);
     expect(response.status).toBe(200);
-    expect(await toolText(response)).toBe("# Pizza\n");
+    expect(JSON.parse(await toolText(response)).notes[0].content).toBe("# Pizza\n");
   });
 
   test("an MCP client connects, lists the tools and calls one over HTTP with its token", async () => {
@@ -223,12 +223,15 @@ describe("signing in", () => {
 
     await client.connect(transport);
     const tools = (await client.listTools()).tools.map((tool) => tool.name);
-    const result = await client.callTool({ name: "append", arguments: { path: "Pizza.md", content: "Dough" } });
+    const result = await client.callTool({
+      name: "edit",
+      arguments: { note: "Pizza", changes: [{ op: "append", content: "Dough" }] },
+    });
     await client.close();
 
-    expect(tools).toContain("search_context");
-    expect(result.content).toEqual([{ type: "text", text: "Appended to: Pizza.md" }]);
-    expect(await server.vault.read("Pizza.md")).toBe("# Pizza\n\nDough");
+    expect(tools).toContain("edit");
+    expect(result.structuredContent).toMatchObject({ summary: "Edited: Pizza.md (1 change)" });
+    expect(await server.vault.read("Pizza.md")).toBe("# Pizza\nDough");
   });
 
   test("Claude Code signs in through a loopback redirect on any port", async () => {
@@ -236,7 +239,7 @@ describe("signing in", () => {
 
     const tokens = await signIn(server, CLAUDE_CODE);
 
-    expect((await callTool(server, tokens.access_token, "files", {})).status).toBe(200);
+    expect((await callTool(server, tokens.access_token, "list", {})).status).toBe(200);
   });
 
   test("the sign-in page names the client and where it redirects, and cannot be framed or run scripts", async () => {
@@ -489,7 +492,7 @@ describe("tokens", () => {
     const second = await exchange(server, issued, verifier);
 
     expect(second.status).toBe(400);
-    expect((await callTool(server, first.access_token, "files", {})).status).toBe(401);
+    expect((await callTool(server, first.access_token, "list", {})).status).toBe(401);
   });
 
   test("an access token expires after an hour, and a refresh token gives new tokens and stops working", async () => {
@@ -497,7 +500,7 @@ describe("tokens", () => {
     const tokens = await signIn(server);
 
     server.advance(60 * 60_000);
-    const expired = await callTool(server, tokens.access_token, "files", {});
+    const expired = await callTool(server, tokens.access_token, "list", {});
     const refreshed = await tokenRequest(server, {
       grant_type: "refresh_token",
       refresh_token: tokens.refresh_token,
@@ -509,7 +512,7 @@ describe("tokens", () => {
     expect(refreshed.status).toBe(200);
     expect(refreshed.headers.get("Cache-Control")).toBe("no-store");
     expect(next.refresh_token).not.toBe(tokens.refresh_token);
-    expect((await callTool(server, next.access_token, "files", {})).status).toBe(200);
+    expect((await callTool(server, next.access_token, "list", {})).status).toBe(200);
   });
 
   test("a refresh token used a second time ends the whole sign-in, since it must have been copied", async () => {
@@ -525,7 +528,7 @@ describe("tokens", () => {
 
     expect(reused.status).toBe(400);
     expect(await reused.json()).toMatchObject({ error: "invalid_grant" });
-    expect((await callTool(server, next.access_token, "files", {})).status).toBe(401);
+    expect((await callTool(server, next.access_token, "list", {})).status).toBe(401);
     expect((await tokenRequest(server, { ...refresh, refresh_token: next.refresh_token })).status).toBe(400);
   });
 
@@ -549,7 +552,7 @@ describe("tokens", () => {
 
     const grant = await tokenRequest(server, { grant_type: "client_credentials" });
     const unknown = await tokenRequest(server, { grant_type: "refresh_token", refresh_token: "nope" });
-    const refreshAsAccess = await signIn(server).then((tokens) => callTool(server, tokens.refresh_token, "files", {}));
+    const refreshAsAccess = await signIn(server).then((tokens) => callTool(server, tokens.refresh_token, "list", {}));
 
     expect(await grant.json()).toMatchObject({ error: "unsupported_grant_type" });
     expect(await unknown.json()).toMatchObject({ error: "invalid_grant" });
@@ -576,6 +579,6 @@ describe("tokens", () => {
 
     server.store.revokeAll();
 
-    expect((await callTool(server, tokens.access_token, "files", {})).status).toBe(401);
+    expect((await callTool(server, tokens.access_token, "list", {})).status).toBe(401);
   });
 });

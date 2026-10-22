@@ -91,6 +91,19 @@ function isToken(text: string): text is Token {
 
 type Fields = { year: number; month: number; day: number; hour: number; minute: number; second: number };
 
+/** The time in ISO 8601 with the time zone's offset, such as `2026-10-22T09:15:00+02:00`. */
+export function isoDateTime(date: Date, timeZone: string): string {
+  const fields = fieldsIn(date, timeZone);
+  const local = Date.UTC(fields.year, fields.month - 1, fields.day, fields.hour, fields.minute, fields.second);
+  const offset = Math.round((local - Math.floor(date.getTime() / 1000) * 1000) / 60_000);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const sign = offset < 0 ? "-" : "+";
+  const minutes = Math.abs(offset);
+  const day = `${String(fields.year).padStart(4, "0")}-${pad(fields.month)}-${pad(fields.day)}`;
+  const time = `${pad(fields.hour)}:${pad(fields.minute)}:${pad(fields.second)}`;
+  return `${day}T${time}${sign}${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
+}
+
 function fieldsIn(date: Date, timeZone: string): Fields {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone,

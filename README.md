@@ -82,9 +82,14 @@ as a warning after each write, until a human resolves it.
 
 ### MCP
 
-`backrooms mcp` serves every command as an MCP tool over stdio. Tool names replace `:` with `_` (`search_context`),
-parameters are named arguments, flags are booleans, and the result is the text the CLI prints. Content is taken
-literally, without the `\n` escapes the shell needs.
+`backrooms mcp` serves the vault over stdio with ten tools designed for agents (ADR 9), rather than one per CLI
+command: `search`, `list`, `read`, `vault` and `history` read, `create`, `edit`, `move`, `delete` and `undo` write.
+They take typed arguments, name a note by its path or its name as `note`, and return JSON. `edit` applies several
+changes as one write and one commit. Content is taken literally, without the `\n` escapes the shell needs.
+
+The server's instructions tell the agent how the tools work together. When the vault has a note `AGENTS.md` at its
+root, its text is added to them, so the vault's conventions, such as how notes are named, reach the agent without
+exploring the vault. A client sees a change to it the next time it connects.
 
 ```json
 {

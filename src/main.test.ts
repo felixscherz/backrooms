@@ -95,10 +95,10 @@ describe("backrooms mcp", () => {
     const vault = await vaultWith({ "Pizza.md": "# Pizza\n" });
     const server = await mcpServer(vault);
 
-    expect(await server.toolNames()).toContain("search_context");
-    expect(await server.callTool("read", { path: "Pizza.md" })).toBe("# Pizza\n");
-    expect(await server.callTool("append", { path: "Pizza.md", content: "Dough" })).toBe("Appended to: Pizza.md");
-    expect(await vault.read("Pizza.md")).toBe("# Pizza\n\nDough");
+    expect(await server.toolNames()).toContain("search");
+    expect(JSON.parse(await server.callTool("read", { notes: "Pizza" })).notes[0].content).toBe("# Pizza\n");
+    await server.callTool("edit", { note: "Pizza", changes: [{ op: "append", content: "Dough" }] });
+    expect(await vault.read("Pizza.md")).toBe("# Pizza\nDough");
   });
 
   test("exits when the client closes stdin", async () => {

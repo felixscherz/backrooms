@@ -211,22 +211,31 @@ export class Vault {
     const direct = this.exact(path) ?? (sourceFolder === "" ? null : this.exact(join(sourceFolder, path)));
     if (direct) return direct;
 
-    const lower = path.toLowerCase();
-    const name = basename(lower);
-    const candidates = [...this.filesNamed(name), ...this.filesNamed(`${name}.md`)].filter((entry) => {
-      const candidate = entry.path.toLowerCase();
-      return [lower, `${lower}.md`].some((suffix) => candidate === suffix || candidate.endsWith(`/${suffix}`));
-    });
+    const candidates = this.endingWith(path);
     candidates.sort(
       (a, b) =>
-        Number(dirname(b.path) === sourceFolder) - Number(dirname(a.path) === sourceFolder) ||
-        a.path.length - b.path.length ||
-        compareNames(a.path, b.path),
+        Number(dirname(b) === sourceFolder) - Number(dirname(a) === sourceFolder) ||
+        a.length - b.length ||
+        compareNames(a, b),
     );
-    return candidates[0]?.path ?? null;
+    return candidates[0] ?? null;
   }
 
-  private exact(path: string): string | null {
+  /** Files whose path ends with the link path, with or without `.md`, ignoring case. */
+  endingWith(linkpath: string): string[] {
+    const lower = linkpath.normalize("NFC").replace(/^\/+/, "").toLowerCase();
+    const name = basename(lower);
+    return [...this.filesNamed(name), ...this.filesNamed(`${name}.md`)]
+      .map((entry) => entry.path)
+      .filter((candidate) =>
+        [lower, `${lower}.md`].some(
+          (suffix) => candidate.toLowerCase() === suffix || candidate.toLowerCase().endsWith(`/${suffix}`),
+        ),
+      );
+  }
+
+  /** The file at a path ignoring case, also when the path leaves out `.md`. */
+  exact(path: string): string | null {
     return (this.byLowerPath.get(path.toLowerCase()) ?? this.byLowerPath.get(`${path.toLowerCase()}.md`))?.path ?? null;
   }
 

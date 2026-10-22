@@ -23,7 +23,7 @@ export function httpHandler(engine: Engine, auth: AuthorizationServer): (request
         sessionIdGenerator: undefined,
         enableJsonResponse: true,
       });
-      const server = createMcpServer(engine);
+      const server = await createMcpServer(engine);
       await server.connect(transport);
       try {
         return await transport.handleRequest(request);

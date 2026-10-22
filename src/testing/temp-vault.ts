@@ -50,7 +50,7 @@ export async function tempVault(
     ]) {
       await runGit(root, ["-c", "user.name=test", "-c", "user.email=test@localhost", ...args]);
     }
-    git = new Git(root, options.git);
+    git = new Git(root, options.git, runGit, options.clock);
   }
   const engine = new Engine(root, { git, clock: options.clock });
   const run = (...argv: string[]) => runCli(engine, parseArguments(argv));
