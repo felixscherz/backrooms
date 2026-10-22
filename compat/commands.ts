@@ -114,14 +114,25 @@ export function changesBetween(before: Record<string, string>, after: Record<str
   return changes;
 }
 
-/** File changes with each note's frontmatter replaced by its parsed properties, for comparing what it says. */
-export function withParsedFrontmatter(changes: FileChanges): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(changes).map(([path, text]) => {
-      if (text === null || !path.endsWith(".md")) return [path, text];
-      const note = parseNote(text);
-      const bodyStart = note.frontmatter.kind === "none" ? 0 : note.frontmatter.span.end;
-      return [path, { properties: note.properties, body: text.slice(bodyStart) }];
-    }),
+/**
+ * What a write left in each file that it, or the recorded write, changed, with each note's frontmatter replaced by
+ * its parsed properties. A file whose properties and body did not change counts as unchanged.
+ */
+export function parsedChanges(before: Record<string, string>, ...changes: FileChanges[]): Record<string, unknown>[] {
+  const paths = [...new Set(changes.flatMap((change) => Object.keys(change)))].sort();
+  const parsed = (path: string, text: string | null | undefined) => {
+    if (text === null || text === undefined || !path.endsWith(".md")) return text ?? null;
+    const note = parseNote(text);
+    return {
+      properties: note.properties,
+      body: text.slice(note.frontmatter.kind === "none" ? 0 : note.frontmatter.span.end),
+    };
+  };
+  return changes.map((change) =>
+    Object.fromEntries(
+      paths
+        .map((path) => [path, parsed(path, path in change ? change[path] : before[path])] as const)
+        .filter(([path, state]) => JSON.stringify(state) !== JSON.stringify(parsed(path, before[path]))),
+    ),
   );
 }

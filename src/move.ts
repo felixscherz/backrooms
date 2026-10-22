@@ -77,9 +77,7 @@ function checkDestination(vault: Vault, from: string, to: string) {
     throw new BackroomError("invalid_argument", `Moving "${from}" to "${to}" would change its file extension.`);
   }
   const existing = vault.fileIgnoringCase(to);
-  if (existing && existing.path !== from) {
-    throw new BackroomError("already_exists", `File "${existing.path}" already exists.`);
-  }
+  if (existing && existing.path !== from) throw new BackroomError("already_exists", "Destination file already exists!");
   const folderClash = vault.folders().find((folder) => folder.toLowerCase() === to.toLowerCase());
   if (folderClash) throw new BackroomError("already_exists", `A folder "${folderClash}" already exists.`);
 }

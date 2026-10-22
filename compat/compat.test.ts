@@ -4,15 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseArguments, runCli } from "../src/cli";
 import { Engine } from "../src/engine";
-import {
-  changesBetween,
-  loadCommands,
-  loadRecording,
-  snapshot,
-  VAULT,
-  withoutOrder,
-  withParsedFrontmatter,
-} from "./commands";
+import { changesBetween, loadCommands, loadRecording, parsedChanges, snapshot, VAULT, withoutOrder } from "./commands";
 
 const recording = loadRecording();
 
@@ -52,10 +44,8 @@ describe(`writes like Obsidian ${recording.obsidian} on a copy of test-vault`, (
       const output = await backroom(new Engine(copy), command.args);
       const changes = changesBetween(before, await snapshot(copy));
       if (command.unordered) {
-        expect({ output, changes: withParsedFrontmatter(changes) }).toEqual({
-          output: expected.output,
-          changes: withParsedFrontmatter(expected.changes),
-        });
+        const [actual, recorded] = parsedChanges(before, changes, expected.changes);
+        expect({ output, changes: actual }).toEqual({ output: expected.output, changes: recorded });
       } else {
         expect({ output, changes }).toEqual(expected);
       }

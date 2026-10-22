@@ -39,14 +39,12 @@ describe("create", () => {
     expect(await vault.ok("create", "name=Pizza")).toBe("Created: Pizza.md");
   });
 
-  test("never replaces an existing note, also when only the case differs", async () => {
-    const vault = await vaultWith({ "Pizza.md": "mine" });
+  test("never replaces an existing note, but numbers the new one like Obsidian, also when only the case differs", async () => {
+    const vault = await vaultWith({ "Pizza.md": "mine", "Pizza 1.md": "mine too" });
 
-    expect(await vault.run("create", "path=pizza.md", "content=x")).toEqual({
-      output: 'Error: File "Pizza.md" already exists.',
-      exitCode: 1,
-    });
+    expect(await vault.ok("create", "path=pizza.md", "content=x")).toBe("Created: pizza 2.md");
     expect(await vault.read("Pizza.md")).toBe("mine");
+    expect(await vault.read("pizza 2.md")).toBe("x");
   });
 
   test("overwrite needs the version of the note it replaces", async () => {
@@ -171,14 +169,25 @@ describe("property:set", () => {
 
     expect(await vault.read("Note.md")).toBe(note.replace("tags: [inbox]   # flow style kept\n", ""));
   });
+
+  test("property:remove of the last property removes the frontmatter, and of a missing one changes nothing", async () => {
+    const vault = await vaultWith({ "Note.md": "---\r\nrating: 2\r\n---\r\nBody\r\n" });
+
+    expect(await vault.ok("property:remove", "path=Note.md", "name=nope")).toBe("Removed: nope");
+    expect(await vault.read("Note.md")).toBe("---\r\nrating: 2\r\n---\r\nBody\r\n");
+    expect(await vault.ok("property:remove", "path=Note.md", "name=rating")).toBe("Removed: rating");
+    expect(await vault.read("Note.md")).toBe("Body\r\n");
+  });
 });
 
 describe("append, prepend and edit", () => {
-  test("append adds content on a new line", async () => {
-    const vault = await vaultWith({ "Log.md": "# Log\n- first\n" });
+  test("append adds a newline and the content, like Obsidian, even after a final newline", async () => {
+    const vault = await vaultWith({ "Log.md": "# Log\n- first\n", "Empty.md": "" });
 
     expect(await vault.ok("append", "path=Log.md", "content=- second")).toBe("Appended to: Log.md");
-    expect(await vault.read("Log.md")).toBe("# Log\n- first\n- second\n");
+    expect(await vault.read("Log.md")).toBe("# Log\n- first\n\n- second");
+    await vault.ok("append", "path=Empty.md", "content=first");
+    expect(await vault.read("Empty.md")).toBe("first");
   });
 
   test("prepend adds content after the frontmatter", async () => {
@@ -308,7 +317,7 @@ describe("rename and move", () => {
     const before = await vault.snapshot();
 
     expect((await vault.run("rename", "path=Pizza.md", "name=Other")).output).toBe(
-      'Error: File "Other.md" already exists.',
+      "Error: Destination file already exists!",
     );
     expect(await vault.snapshot()).toEqual(before);
   });
@@ -422,7 +431,7 @@ describe("unicode file names", () => {
     const snapshot = await vault.snapshot();
     const files = Object.keys(snapshot).filter((path) => !path.startsWith(".obsidian"));
     expect(files.sort()).toEqual(["Link.md", decomposed]);
-    expect(snapshot[decomposed]).toBe("# M\nmore\n");
+    expect(snapshot[decomposed]).toBe("# M\n\nmore");
   });
 
   test("a rename moves the file stored under its decomposed name", async () => {

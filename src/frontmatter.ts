@@ -123,14 +123,23 @@ export function setProperty(text: string, name: string, value: PropertyValue): s
 }
 
 /** Removes a property's lines from the frontmatter. */
+/**
+ * Removes a property's lines from the frontmatter, and the frontmatter itself when nothing is left in it, like
+ * Obsidian. A property that is not there leaves the text as it is.
+ */
 export function removeProperty(text: string, name: string): string {
   const frontmatter = editableFrontmatter(text);
   const pair = frontmatter && findPair(text, frontmatter, name);
-  if (!pair) throw new BackroomError("not_found", `Property "${name}" not found.`);
+  if (!pair) return text;
   const lineStart = text.lastIndexOf("\n", pair.keyStart - 1) + 1;
   const newlineAfter = text.indexOf("\n", pair.valueSpan.end);
   const lineEnd = newlineAfter === -1 ? text.length : newlineAfter + 1;
-  return text.slice(0, lineStart) + text.slice(Math.min(lineEnd, frontmatter.end));
+  const removed = text.slice(0, lineStart) + text.slice(Math.min(lineEnd, frontmatter.end));
+  const after = parseNote(removed).frontmatter;
+  if (after.kind === "valid" && removed.slice(after.yamlSpan.start, after.yamlSpan.end).trim() === "") {
+    return removed.slice(after.span.end);
+  }
+  return removed;
 }
 
 /** The YAML span of the frontmatter, or null for a note without one. Refuses notes whose frontmatter is invalid. */

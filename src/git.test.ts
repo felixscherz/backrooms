@@ -128,7 +128,7 @@ describe("sync", () => {
 
     expect(await vault.read("Phone.md")).toBe("from the laptop");
     await git(other, "pull", "--quiet");
-    expect(await Bun.file(join(other, "A.md")).text()).toBe("a\nb\n");
+    expect(await Bun.file(join(other, "A.md")).text()).toBe("a\n\nb");
   });
 
   test("a conflicting remote change stops syncing but keeps the local commit", async () => {
@@ -140,7 +140,7 @@ describe("sync", () => {
 
     const output = await vault.ok("append", "path=A.md", "content=again");
 
-    expect(await vault.read("A.md")).toBe("a\nlocal\nagain\n");
+    expect(await vault.read("A.md")).toBe("a\n\nlocal\nagain");
     expect(output).toContain("Warning: Not pushed");
     expect(await vault.ok("git:status")).toContain("sync: sync (stopped:");
   });

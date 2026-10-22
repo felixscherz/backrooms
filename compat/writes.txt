@@ -9,6 +9,8 @@
 create path="New.md" content="# New\n\nText"
 create name=Plain
 create path="folder/Deep/New.md" content=x
+create path="Alpha.md" content=x
+append path="Beta.md" content="Appended"
 append path="Alpha.md" content="Inline" inline
 append path="Gamma.md" content="Line"
 prepend path="Alpha.md" content="Prepended"
@@ -25,11 +27,16 @@ property:set path="Beta.md" name=status value=draft
 ~ property:set path="Windows Note.md" name=rating value=3 type=number
 property:set path="Beta.md" name=title value=Beta
 ~ property:set path="properties/Value kinds.md" name=s value="new: value"
+~ property:remove path="Alpha.md" name=rating
+~ property:remove path="Alpha.md" name=tags
+~ property:remove path="Alpha.md" name=nope
+~ property:remove path="Windows Note.md" name=rating
 delete path="Orphan Note.md"
 delete path="Nope.md"
 delete path="assets/diagram.png"
 rename path="folder/Gamma.md" name="Gamma Two"
 rename path="projects/Project Plan.md" name=Plan
+rename path="Alpha.md" name=Beta
 move path="projects/Sibling.md" to="Sibling Moved.md"
 move path="folder/sub/Delta.md" to=projects
 move path="projects/sub dir/Note With Space.md" to="Space Moved.md"

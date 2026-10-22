@@ -302,8 +302,8 @@ export class Engine {
   // Writing
 
   /**
-   * Creates a note. An existing file is only replaced with `overwrite`, and then only when `version` names the
-   * version the new content is based on.
+   * Creates a note. When the path is taken, the note gets a free name like "Note 1.md", as in Obsidian. An existing
+   * file is only replaced with `overwrite`, and then only when `version` names the version the new content is based on.
    */
   async create(options: {
     target: FileTarget;
@@ -314,8 +314,15 @@ export class Engine {
     return this.write(async (vault) => {
       const path = newFilePath(vault, options.target);
       const existing = vault.fileIgnoringCase(path);
+      if (existing && !options.overwrite) {
+        const free = freePath(vault, path);
+        return {
+          operation: "create",
+          summary: `Created: ${free}`,
+          changes: [{ kind: "create", path: free, text: options.content }],
+        };
+      }
       if (existing) {
-        if (!options.overwrite) throw new BackroomError("already_exists", `File "${existing.path}" already exists.`);
         if (options.version === undefined) {
           throw new BackroomError(
             "invalid_argument",
@@ -337,16 +344,15 @@ export class Engine {
     });
   }
 
-  /** Adds content at the end of a note, on a new line unless `inline`. */
+  /** Adds content at the end of a note after a newline, unless `inline`. Like Obsidian, also after a final newline. */
   async append(
     ref: FileRef,
     content: string,
     options: { inline?: boolean; version?: string } = {},
   ): Promise<WriteResult> {
     return this.modify(ref, "append", options.version, (text, path) => {
-      const separator = options.inline || text === "" || text.endsWith("\n") ? "" : "\n";
-      const trailing = !options.inline && text.endsWith("\n") && !content.endsWith("\n") ? "\n" : "";
-      return { text: text + separator + content + trailing, summary: `Appended to: ${path}` };
+      const separator = options.inline || text === "" ? "" : "\n";
+      return { text: text + separator + content, summary: `Appended to: ${path}` };
     });
   }
 
@@ -406,7 +412,7 @@ export class Engine {
   async propertyRemove(ref: FileRef, name: string): Promise<WriteResult> {
     return this.modify(ref, "property:remove", undefined, (text, path) => ({
       text: removeProperty(text, name),
-      summary: `Removed ${name} from: ${path}`,
+      summary: `Removed: ${name}`,
     }));
   }
 
@@ -621,6 +627,16 @@ function newFilePath(vault: Vault, target: FileTarget): string {
     throw new BackroomError("unsupported", "backroom only creates markdown notes.");
   }
   return path;
+}
+
+/** The path with " 1", " 2" and so on added to its name until no file has it, the way Obsidian names a copy. */
+function freePath(vault: Vault, path: string): string {
+  const ext = extension(path);
+  const base = ext === "" ? path : path.slice(0, -ext.length - 1);
+  for (let number = 1; ; number++) {
+    const candidate = `${base} ${number}${ext === "" ? "" : `.${ext}`}`;
+    if (!vault.fileIgnoringCase(candidate)) return candidate;
+  }
 }
 
 function moveDestination(vault: Vault, from: string, destination: string): string {

@@ -247,6 +247,18 @@
         "folder/Deep/New.md": "x"
       }
     },
+    "create path=\"Alpha.md\" content=x": {
+      "output": "Created: Alpha 1.md\n",
+      "changes": {
+        "Alpha 1.md": "x"
+      }
+    },
+    "append path=\"Beta.md\" content=\"Appended\"": {
+      "output": "Appended to: Beta.md\n",
+      "changes": {
+        "Beta.md": "# Beta\n\nBack to [[Alpha]]. Also [[First]] alias link. Pizza is great.\n`#notatag` #real-tag\n\nAppended"
+      }
+    },
     "append path=\"Alpha.md\" content=\"Inline\" inline": {
       "output": "Appended to: Alpha.md\n",
       "changes": {
@@ -341,6 +353,30 @@
         "properties/Value kinds.md": "---\ns: \"new: value\"\nq: \"quoted: colon\"\nn: 5\nf: 1.5\nb: false\nd: 2026-10-20\ne:\nl:\n  - a\n  - b c\n  - 3\nnested:\n  k: v\nmulti: |\n  line1\n  line2\nlink: \"[[Beta]]\"\nnum_str: \"007\"\nempty_list: []\n---\n"
       }
     },
+    "property:remove path=\"Alpha.md\" name=rating": {
+      "output": "Removed: rating\n",
+      "changes": {
+        "Alpha.md": "---\ndate_created: 2026-10-20 14:05:00\ntags:\n  - inbox\n  - project/alpha\naliases:\n  - First\n  - The Alpha\ndone: true\nrelated:\n  - \"[[Beta]]\"\n  - \"[[Missing Prop]]\"\n---\n# Alpha\n\nIntro with #idea and #Idea and a [[Beta]] link and [[Beta|shown]] again.\nSee [[folder/Gamma#Section One]] and [[Gamma]] and [[Nowhere]] and [[Nowhere]].\nEmbed ![[diagram.png]] and [md](folder/sub/Delta.md) and [ext](https://example.com).\n\n## Second heading\nText with pizza recipe mention.\n- [ ] a task #todo\n- [x] done task\n\n### Third ###\nBlock ^blk1\n"
+      }
+    },
+    "property:remove path=\"Alpha.md\" name=tags": {
+      "output": "Removed: tags\n",
+      "changes": {
+        "Alpha.md": "---\ndate_created: 2026-10-20 14:05:00\naliases:\n  - First\n  - The Alpha\nrating: 4\ndone: true\nrelated:\n  - \"[[Beta]]\"\n  - \"[[Missing Prop]]\"\n---\n# Alpha\n\nIntro with #idea and #Idea and a [[Beta]] link and [[Beta|shown]] again.\nSee [[folder/Gamma#Section One]] and [[Gamma]] and [[Nowhere]] and [[Nowhere]].\nEmbed ![[diagram.png]] and [md](folder/sub/Delta.md) and [ext](https://example.com).\n\n## Second heading\nText with pizza recipe mention.\n- [ ] a task #todo\n- [x] done task\n\n### Third ###\nBlock ^blk1\n"
+      }
+    },
+    "property:remove path=\"Alpha.md\" name=nope": {
+      "output": "Removed: nope\n",
+      "changes": {
+        "Alpha.md": "---\ndate_created: 2026-10-20 14:05:00\ntags:\n  - inbox\n  - project/alpha\naliases:\n  - First\n  - The Alpha\nrating: 4\ndone: true\nrelated:\n  - \"[[Beta]]\"\n  - \"[[Missing Prop]]\"\n---\n# Alpha\n\nIntro with #idea and #Idea and a [[Beta]] link and [[Beta|shown]] again.\nSee [[folder/Gamma#Section One]] and [[Gamma]] and [[Nowhere]] and [[Nowhere]].\nEmbed ![[diagram.png]] and [md](folder/sub/Delta.md) and [ext](https://example.com).\n\n## Second heading\nText with pizza recipe mention.\n- [ ] a task #todo\n- [x] done task\n\n### Third ###\nBlock ^blk1\n"
+      }
+    },
+    "property:remove path=\"Windows Note.md\" name=rating": {
+      "output": "Removed: rating\n",
+      "changes": {
+        "Windows Note.md": "CRLF note #crlf\r\n"
+      }
+    },
     "delete path=\"Orphan Note.md\"": {
       "output": "Moved to trash: Orphan Note.md\n",
       "changes": {
@@ -372,6 +408,10 @@
         "projects/Project Plan.md": null,
         "projects/sub dir/Note With Space.md": "# Note With Space\n\nBack to [[Plan]].\n"
       }
+    },
+    "rename path=\"Alpha.md\" name=Beta": {
+      "output": "Error: Destination file already exists!\n",
+      "changes": {}
     },
     "move path=\"projects/Sibling.md\" to=\"Sibling Moved.md\"": {
       "output": "Moved: projects/Sibling.md -> Sibling Moved.md\n",
