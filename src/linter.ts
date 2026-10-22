@@ -11,32 +11,60 @@ import type { Plugin, PluginDefinition, SavedNote } from "./plugins";
 export const linter: PluginDefinition = {
   id: "obsidian-linter",
   load(data) {
-    const timestamps = timestampSettings(ruleConfig(data, "yaml-timestamp"));
-    return new Linter(timestamps);
+    const general = generalSettings(data);
+    const config = ruleConfig(data, "yaml-timestamp");
+    // A write through backroom stands for editing a note in Obsidian. The Linter changes a note after an edit when
+    // it lints on save, when the note is left, or, for this rule alone, when the note's content changes.
+    const runs =
+      general.lintOnSave ||
+      general.lintOnFileChange ||
+      (config?.["update-on-file-contents-updated"] ?? "never") !== "never";
+    return new Linter(general, runs ? timestampSettings(config) : null);
   },
+};
+
+/** The Linter's general settings that decide which notes it lints. */
+type GeneralSettings = {
+  lintOnSave: boolean;
+  lintOnFileChange: boolean;
+  foldersToIgnore: string[];
+  filesToIgnore: RegExp[];
 };
 
 type TimestampSettings = {
   /** The key of the creation date, or null when the rule does not record it. */
   createdKey: string | null;
   modifiedKey: string | null;
+  /** Whether date modified only changes when the Linter changes the note, not on every edit. */
+  modifiedOnLinterEdits: boolean;
   format: DateFormat;
   utc: boolean;
 };
 
 class Linter implements Plugin {
-  constructor(private readonly timestamps: TimestampSettings | null) {}
+  constructor(
+    private readonly general: GeneralSettings,
+    private readonly timestamps: TimestampSettings | null,
+  ) {}
 
   async onSave(note: SavedNote, clock: Clock): Promise<string> {
-    return this.timestamps ? recordTimestamps(note, this.timestamps, clock) : note.text;
+    if (!this.timestamps || !this.lints(note.path)) return note.text;
+    return recordTimestamps(note, this.timestamps, clock);
+  }
+
+  /** Whether the Linter lints the note at the path, which it does unless the path is in its folders or files to ignore. */
+  private lints(path: string): boolean {
+    if (this.general.foldersToIgnore.some((folder) => path.startsWith(`${folder}/`))) return false;
+    return !this.general.filesToIgnore.some((pattern) => pattern.test(path));
   }
 }
 
 /**
- * The Linter's `yaml-timestamp` rule with the file system as the source of truth. A missing, empty or malformed
- * creation date becomes the date the note was created, a valid one stays. The modification date becomes now, since
- * the note is being saved with a change. Missing keys are added at the end of the frontmatter, which is added when
- * the note has none. Each timestamp only changes its own line.
+ * The Linter's `yaml-timestamp` rule with the file system as the source of truth for the creation date. A missing,
+ * empty or malformed creation date becomes the date the note was created, a valid one stays. The modification date
+ * becomes now, since the note is being saved with a change. When it follows user or Linter edits instead, a valid
+ * one only changes when the rule changed the note. Missing keys are added at the end of the frontmatter, which is
+ * added when the note has none. Each timestamp only changes its own line.
  */
 async function recordTimestamps(note: SavedNote, settings: TimestampSettings, clock: Clock): Promise<string> {
   let text = note.text;
@@ -44,6 +72,7 @@ async function recordTimestamps(note: SavedNote, settings: TimestampSettings, cl
   if (frontmatter.kind === "invalid") return text;
   const newline = text.includes("\r\n") ? "\r\n" : "\n";
   if (frontmatter.kind === "none") text = `---${newline}---${newline}${text}`;
+  const unchanged = text;
   const timeZone = settings.utc ? "UTC" : clock.timeZone;
   const write = (date: Date) => settings.format.format(date, timeZone);
 
@@ -55,7 +84,12 @@ async function recordTimestamps(note: SavedNote, settings: TimestampSettings, cl
   }
   if (settings.modifiedKey !== null) {
     const modified = findTimestamp(text, settings.modifiedKey);
-    text = setTimestamp(text, settings.modifiedKey, modified, write(clock.now()), newline);
+    const keep =
+      settings.modifiedOnLinterEdits &&
+      text === unchanged &&
+      modified !== null &&
+      settings.format.matches(modified.value);
+    if (!keep) text = setTimestamp(text, settings.modifiedKey, modified, write(clock.now()), newline);
   }
   return text;
 }
@@ -111,9 +145,43 @@ function timestampSettings(config: Record<string, unknown> | null): TimestampSet
   return {
     createdKey: option("date-created", true) ? option("date-created-key", "date created") : null,
     modifiedKey: option("date-modified", true) ? option("date-modified-key", "date modified") : null,
+    modifiedOnLinterEdits: option<string>("date-modified-source-of-truth", "file system") === "user or Linter edits",
     format,
     utc: option("convert-to-utc", false),
   };
+}
+
+function generalSettings(data: unknown): GeneralSettings {
+  const settings = isRecord(data) ? data : {};
+  const strings = (value: unknown) => (Array.isArray(value) ? value.filter((item) => typeof item === "string") : []);
+  return {
+    lintOnSave: settings.lintOnSave === true,
+    lintOnFileChange: settings.lintOnFileChange === true,
+    foldersToIgnore: strings(settings.foldersToIgnore)
+      .filter((folder) => folder.length > 0)
+      .map(normalizePath),
+    filesToIgnore: (Array.isArray(settings.filesToIgnore) ? settings.filesToIgnore : [])
+      .filter((file): file is { match: string; flags?: unknown } => isRecord(file) && typeof file.match === "string")
+      .filter((file) => file.match !== "")
+      .map((file) => fileToIgnore(file.match, typeof file.flags === "string" ? file.flags : "")),
+  };
+}
+
+function fileToIgnore(match: string, flags: string): RegExp {
+  try {
+    return new RegExp(match, flags);
+  } catch {
+    throw new BackroomError(
+      "unsafe",
+      `backroom cannot tell which notes the Linter ignores, because "${match}" with flags "${flags}" in its files to ignore is not a valid regular expression.`,
+    );
+  }
+}
+
+/** A folder path as Obsidian's `normalizePath` writes it. */
+function normalizePath(path: string): string {
+  const normalized = path.replace(/([\\/])+/g, "/").replace(/(^\/+|\/+$)/g, "");
+  return (normalized === "" ? "/" : normalized).replace(/\u00A0|\u202F/g, " ").normalize("NFC");
 }
 
 function unsupported(reason: string): BackroomError {

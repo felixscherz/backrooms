@@ -84,6 +84,7 @@ Rules backroom follows that were found by comparing with Obsidian, some of them 
 | Names that sort equal, like `Repository` and `repository` | Index order | Order found | Same |
 | Errors | Exit code 0 | Exit code 1 | Lets scripts notice errors |
 | Creation date of an existing note without a valid `date_created` | The file system's creation date | The date git first saw the note, else the file system's | A clone's files are all created when it is cloned |
+| Saving a note whose `date_modified` is less than 5 seconds old, with the file system as its source of truth | The Linter keeps it | Set to now | The Linter compares with the file's modification time, which a write through backroom sets to now |
 | `>` or `<` before a negation, regex or group | Names its internal matcher, `matcher Excluding:` | Names the kind of term | The matcher names are internal to Obsidian |
 | `path=` with a decomposed name | File not found | Found | Paths are compared in NFC |
 

@@ -28,10 +28,17 @@ afterEach(async () => {
 
 async function vaultWith(
   files: Record<string, string>,
-  options: { timestamps?: Record<string, unknown>; enabled?: boolean; git?: GitMode; timeZone?: string } = {},
+  options: {
+    timestamps?: Record<string, unknown>;
+    general?: Record<string, unknown>;
+    enabled?: boolean;
+    git?: GitMode;
+    timeZone?: string;
+  } = {},
 ): Promise<TempVault> {
   const linter = {
     lintOnSave: true,
+    ...options.general,
     ruleConfigs: {
       "yaml-timestamp": { ...TIMESTAMPS, ...options.timestamps },
       "trailing-spaces": { enabled: true },
@@ -189,5 +196,88 @@ describe("the Linter's yaml-timestamp rule", () => {
     expect(formatResult.output).toContain('format "MMMM Do YYYY"');
     expect(truthResult.output).toContain("frontmatter");
     expect(await format.snapshot()).not.toHaveProperty("Note.md");
+  });
+
+  test("a write is linted only when the Linter lints on save, on leaving a note, or as a note changes", async () => {
+    const off = { lintOnSave: false, lintOnFileChange: false };
+    const vaults = {
+      onSave: await vaultWith({}, { general: { ...off, lintOnSave: true } }),
+      onLeavingNote: await vaultWith({}, { general: { ...off, lintOnFileChange: true } }),
+      asNoteChanges: await vaultWith(
+        {},
+        { general: off, timestamps: { "update-on-file-contents-updated": "after 5 seconds" } },
+      ),
+      never: await vaultWith({}, { general: off }),
+      defaults: await vaultWith({}, { general: { lintOnSave: undefined } }),
+    };
+
+    const linted: Record<string, boolean> = {};
+    for (const [name, vault] of Object.entries(vaults)) {
+      await vault.ok("create", "path=Note.md", "content=x");
+      linted[name] = (await vault.read("Note.md")) !== "x";
+    }
+
+    expect(linted).toEqual({ onSave: true, onLeavingNote: true, asNoteChanges: true, never: false, defaults: false });
+  });
+
+  test("notes in the folders and files the Linter ignores are left alone", async () => {
+    const vault = await vaultWith(
+      {},
+      {
+        general: {
+          foldersToIgnore: ["Templates", "/Daily//Old/", ""],
+          filesToIgnore: [
+            { match: "^Inbox/.*\\.md$", flags: "", label: "inbox" },
+            { match: "draft", flags: "i", label: "drafts" },
+            { match: "", flags: "", label: "empty matches nothing" },
+          ],
+        },
+      },
+    );
+    const paths = [
+      "Templates/T.md",
+      "Templates and more/T.md",
+      "Daily/Old/D.md",
+      "Daily/D.md",
+      "Inbox/I.md",
+      "Notes/My DRAFT.md",
+      "Notes/Final.md",
+    ];
+
+    const linted: string[] = [];
+    for (const path of paths) {
+      await vault.ok("create", `path=${path}`, "content=x");
+      if ((await vault.read(path)) !== "x") linted.push(path);
+    }
+
+    expect(linted).toEqual(["Templates and more/T.md", "Daily/D.md", "Notes/Final.md"]);
+  });
+
+  test("when date_modified follows user or Linter edits, it changes only when the Linter changes the note", async () => {
+    const userOrLinter = { "date-modified-source-of-truth": "user or Linter edits" };
+    const vault = await vaultWith(
+      {
+        "Kept.md": "---\ndate_created: 2026-01-01 08:00:00\ndate_modified: 2026-01-02 08:00:00\n---\nBody",
+        "Created.md": "---\ndate_modified: 2026-01-02 08:00:00\n---\nBody",
+        "Malformed.md": "---\ndate_created: 2026-01-01 08:00:00\ndate_modified: yesterday\n---\nBody",
+        "Missing.md": "---\ndate_created: 2026-01-01 08:00:00\n---\nBody",
+      },
+      { timestamps: userOrLinter },
+    );
+
+    for (const path of ["Kept.md", "Created.md", "Malformed.md", "Missing.md"]) {
+      await vault.ok("append", `path=${path}`, "content=More");
+    }
+
+    expect(await vault.read("Kept.md")).toContain("date_modified: 2026-01-02 08:00:00\n");
+    expect(await vault.read("Created.md")).toContain("date_modified: 2026-10-22 12:30:00\n");
+    expect(await vault.read("Malformed.md")).toContain("date_modified: 2026-10-22 12:30:00\n");
+    expect(await vault.read("Missing.md")).toContain("date_modified: 2026-10-22 12:30:00\n");
+  });
+
+  test("writes fail when a file the Linter ignores is described by an invalid regular expression", async () => {
+    const vault = await vaultWith({}, { general: { filesToIgnore: [{ match: "(", flags: "", label: "broken" }] } });
+
+    expect((await vault.run("create", "path=Note.md", "content=x")).output).toContain('"("');
   });
 });

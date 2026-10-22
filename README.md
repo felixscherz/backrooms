@@ -54,7 +54,8 @@ with a `busy` error after waiting 10 seconds for a lock that a running process h
 
 backroom reimplements some features of community plugins and applies them when the vault enables the plugin, with the
 plugin's own settings from `.obsidian/plugins/<id>/data.json` (ADR 7). A note is linted when a command creates or
-changes it, not when it is only renamed, moved or deleted.
+changes it, not when it is only renamed, moved or deleted. Like the Linter, backroom only lints when the Linter lints on
+save or on leaving a note, or updates timestamps as a note changes, and leaves the folders and files it ignores alone.
 
 | Plugin | What backroom does |
 | --- | --- |
