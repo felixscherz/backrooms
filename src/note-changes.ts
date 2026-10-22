@@ -8,6 +8,7 @@ import {
   type PropertyValueType,
 } from "./frontmatter";
 import { parseNote } from "./note";
+import { findSection } from "./section";
 import type { PropertyType } from "./vault";
 
 /** A property value as an agent gives it: lists, numbers and booleans keep their type, text is parsed by type. */
@@ -18,6 +19,8 @@ export type NoteChange =
   | { op: "replace"; old: string; new: string; all?: boolean }
   | { op: "append"; content: string }
   | { op: "prepend"; content: string }
+  | { op: "append_to_section"; heading: string; content: string }
+  | { op: "set_content"; content: string }
   | { op: "set_property"; name: string; value: PropertyInput; type?: PropertyValueType }
   | { op: "remove_property"; name: string };
 
@@ -28,11 +31,11 @@ export type NoteChange =
 export function applyNoteChanges(
   text: string,
   changes: NoteChange[],
-  propertyTypes: Record<string, PropertyType>,
+  context: { path: string; propertyTypes: Record<string, PropertyType> },
 ): string {
   return changes.reduce((current, change, index) => {
     try {
-      return applyNoteChange(current, change, propertyTypes);
+      return applyNoteChange(current, change, context);
     } catch (error) {
       if (!(error instanceof BackroomsError) || changes.length === 1) throw error;
       throw new BackroomsError(error.code, `Change ${index + 1} (${change.op}): ${error.message} Nothing was changed.`);
@@ -40,7 +43,11 @@ export function applyNoteChanges(
   }, text);
 }
 
-function applyNoteChange(text: string, change: NoteChange, propertyTypes: Record<string, PropertyType>): string {
+function applyNoteChange(
+  text: string,
+  change: NoteChange,
+  { path, propertyTypes }: { path: string; propertyTypes: Record<string, PropertyType> },
+): string {
   switch (change.op) {
     case "replace":
       return replace(text, change.old, change.new, change.all ?? false);
@@ -55,6 +62,18 @@ function applyNoteChange(text: string, change: NoteChange, propertyTypes: Record
       const separator = change.content.endsWith("\n") ? "" : "\n";
       return text.slice(0, at) + change.content + separator + text.slice(at);
     }
+    case "append_to_section":
+      return appendToSection(text, path, change.heading, change.content);
+    case "set_content": {
+      if (parseNote(change.content).frontmatter.kind !== "none") {
+        throw new BackroomsError(
+          "invalid_argument",
+          "The content must not start with frontmatter. Change properties with set_property instead.",
+        );
+      }
+      const frontmatter = parseNote(text).frontmatter;
+      return text.slice(0, frontmatter.kind === "none" ? 0 : frontmatter.span.end) + change.content;
+    }
     case "set_property": {
       if (change.name.trim() === "") throw new BackroomsError("invalid_argument", "Property name must not be empty.");
       const current = parseNote(text).properties[change.name];
@@ -63,6 +82,21 @@ function applyNoteChange(text: string, change: NoteChange, propertyTypes: Record
     case "remove_property":
       return removeProperty(text, change.name);
   }
+}
+
+/**
+ * Adds content at the end of a section, after its last line that is not blank. Text goes under the heading's own
+ * text, before its subsections. Content that starts with a heading is a subsection, so it goes after the last one.
+ */
+function appendToSection(text: string, path: string, heading: string, content: string): string {
+  const section = findSection(text, parseNote(text).headings, heading, path);
+  const startsWithHeading = /^ {0,3}#{1,6}(?:[ \t]|\r?\n|$)/.test(content);
+  const end = startsWithHeading ? section.span.end : section.ownEnd;
+  const before = text.slice(section.span.start, end).trimEnd();
+  const at = section.span.start + before.length;
+  const ending = content.endsWith("\n") ? "" : "\n";
+  const rest = text.slice(at).replace(/^\r?\n/, "");
+  return text.slice(0, at) + "\n" + content + ending + rest;
 }
 
 /** Replaces text that occurs exactly once, or every occurrence with `all`, so a change never lands by surprise. */

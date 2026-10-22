@@ -104,14 +104,26 @@ all of them apply, as one write and one commit, or none do.
 
 - `replace { old, new, all? }` works like the edit tools agents already know: `old` has to occur exactly once, unless
   `all` is true. Otherwise the call fails and says how often and at which lines it occurs, so the model can add
-  surrounding text. Adding a line under a heading is a replacement anchored on the section's text the model just read.
+  surrounding text.
 - `append` and `prepend` add text to the end or the start of the note, after its frontmatter. They need no anchor,
   which suits logs and inbox notes.
+- `append_to_section { heading, content }` adds text at the end of a section, the most common write to a journal or
+  project note. Text goes before the section's subsections; content that starts with a heading is a new subsection
+  and goes after the last one. `heading` names the section like `read`'s `section` does, and a heading that matches
+  several sections fails and lists them, so the change never lands in the wrong one.
+- `set_content { content }` replaces everything after the frontmatter, to restructure a note in one change that keeps
+  its history, instead of many replacements or a delete and a create. The properties stay, and content that starts
+  with frontmatter is refused, so properties only change through `set_property`.
 - `set_property { name, value, type? }` and `remove_property { name }` change the frontmatter through the engine, so
   its formatting stays as it is (ADR 2) and plugin rules such as the Linter's timestamps apply (ADR 7).
 
-Changes are anchored on exact text, not on headings, because headings repeat in a vault, and a change that lands in
-the wrong section damages a note while a read of the wrong section does not.
+Changes are anchored on exact text, or on a heading that matches exactly one section. Headings repeat in a vault,
+and a change that lands in the wrong section damages a note while a read of the wrong section does not, so a heading
+that is not unique fails instead of picking one.
+
+### `move` and `delete`
+
+`move` creates the destination folder when it does not exist. `delete` leaves links to the note as they are.
 
 ### `vault` and `history`
 
@@ -141,6 +153,8 @@ The CLI stays compatible with the Obsidian CLI for now. If the CLI should later 
 
 - **Semantic search** over the vault would complement literal search, for example as `search { mode: "semantic" }`,
   but adds an index and embeddings to the server.
+- **Requiring `version`** for writes that can lose text, such as `replace`, `set_content`, `move` and `delete`, so the
+  concurrency check is not opt-in.
 - **Creating a note from a template** needs the syntax of Obsidian's Templates plugin, which falls under ADR 7.
 
 ## Consequences

@@ -1,5 +1,5 @@
 import { BackroomsError } from "./errors";
-import type { Heading } from "./note";
+import type { Heading, Span } from "./note";
 
 /** The text under a heading, up to the next heading of the same or a higher level, with the heading line itself. */
 export type Section = {
@@ -8,6 +8,10 @@ export type Section = {
   /** The line of the heading, numbered from 1. */
   line: number;
   text: string;
+  /** Where the section sits in the note's text. */
+  span: Span;
+  /** Where its first subsection starts, or its end when it has none, so the text before is the heading's own. */
+  ownEnd: number;
 };
 
 /**
@@ -49,7 +53,15 @@ export function findSection(text: string, headings: Heading[], wanted: string, p
   const next = headings.find((other) => other.line > heading.line && other.level <= heading.level);
   const start = lineOffset(text, heading.line);
   const end = next ? lineOffset(text, next.line) : text.length;
-  return { heading: headingPath(heading, ancestors), line: heading.line + 1, text: text.slice(start, end) };
+  const subsection = headings.find((other) => other.line > heading.line);
+  const ownEnd = subsection && subsection.level > heading.level ? lineOffset(text, subsection.line) : end;
+  return {
+    heading: headingPath(heading, ancestors),
+    line: heading.line + 1,
+    text: text.slice(start, end),
+    span: { start, end },
+    ownEnd,
+  };
 }
 
 type Placed = { heading: Heading; ancestors: Heading[] };

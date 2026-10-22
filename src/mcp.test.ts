@@ -359,6 +359,82 @@ describe("edit", () => {
     expect(error).toBe(`Error: File "Log.md" changed since version ${version}. Read it again and retry the change.`);
   });
 
+  test("set_content replaces the text after the frontmatter", async () => {
+    const { vault, client } = await connect({ "Oven.md": "---\nstatus: open # keep\n---\n# Oven\nold plan\n" });
+
+    await call(client, "edit", { note: "Oven", changes: [{ op: "set_content", content: "# Oven\n\nnew plan\n" }] });
+
+    expect(await vault.read("Oven.md")).toBe("---\nstatus: open # keep\n---\n# Oven\n\nnew plan\n");
+  });
+
+  test("set_content refuses frontmatter, which set_property changes", async () => {
+    const { vault, client } = await connect({ "Oven.md": "# Oven\n" });
+
+    const error = await fails(client, "edit", {
+      note: "Oven",
+      changes: [{ op: "set_content", content: "---\nstatus: done\n---\n# Oven\n" }],
+    });
+
+    expect(error).toBe(
+      "Error: The content must not start with frontmatter. Change properties with set_property instead.",
+    );
+    expect(await vault.read("Oven.md")).toBe("# Oven\n");
+  });
+
+  test("append_to_section adds text under the heading's own text, before its subsections", async () => {
+    const { vault, client } = await connect({
+      "Oven.md": "# Oven\n## Tasks\n- buy bricks\n\n### Later\n- paint\n## Notes\n",
+    });
+
+    await call(client, "edit", {
+      note: "Oven",
+      changes: [{ op: "append_to_section", heading: "Tasks", content: "- lay the floor" }],
+    });
+
+    expect(await vault.read("Oven.md")).toBe(
+      "# Oven\n## Tasks\n- buy bricks\n- lay the floor\n\n### Later\n- paint\n## Notes\n",
+    );
+  });
+
+  test("append_to_section adds a subsection after the section's last one", async () => {
+    const { vault, client } = await connect({
+      "Journal.md": "# June\n## 2026-06-22\n- rain\n\n# July\n",
+    });
+
+    await call(client, "edit", {
+      note: "Journal",
+      changes: [{ op: "append_to_section", heading: "June", content: "## 2026-06-23\n- sun\n" }],
+    });
+
+    expect(await vault.read("Journal.md")).toBe("# June\n## 2026-06-22\n- rain\n## 2026-06-23\n- sun\n\n# July\n");
+  });
+
+  test("append_to_section adds to a section at the end of a note without a final line break", async () => {
+    const { vault, client } = await connect({ "Oven.md": "# Oven\n## Tasks" });
+
+    await call(client, "edit", {
+      note: "Oven",
+      changes: [{ op: "append_to_section", heading: "Tasks", content: "- buy bricks" }],
+    });
+
+    expect(await vault.read("Oven.md")).toBe("# Oven\n## Tasks\n- buy bricks\n");
+  });
+
+  test("append_to_section fails when the heading matches several sections, and lists them", async () => {
+    const { vault, client } = await connect({ "Journal.md": "# June\n## Tasks\n# July\n## Tasks\n" });
+
+    const error = await fails(client, "edit", {
+      note: "Journal",
+      changes: [{ op: "append_to_section", heading: "Tasks", content: "- x" }],
+    });
+
+    expect(error).toBe(
+      'Error: "Tasks" matches 2 headings in "Journal.md": June > Tasks (line 2); July > Tasks (line 4). ' +
+        "Name one by its path.",
+    );
+    expect(await vault.read("Journal.md")).toBe("# June\n## Tasks\n# July\n## Tasks\n");
+  });
+
   test("returns the version for the next write", async () => {
     const { client } = await connect({ "Log.md": "a\n" });
 
@@ -374,13 +450,13 @@ describe("edit", () => {
 });
 
 describe("move", () => {
-  test("moves to a folder, renames, and updates links", async () => {
+  test("moves to a folder it creates, renames, and updates links", async () => {
     const { vault, client } = await connect({ "Oven.md": "oven", "Index.md": "[[Oven]]\n" });
 
-    const result = await call(client, "move", { note: "Oven", folder: "Projects", name: "Pizza oven" });
+    const result = await call(client, "move", { note: "Oven", folder: "Projects/Kitchen", name: "Pizza oven" });
 
-    expect(result).toMatchObject({ path: "Projects/Pizza oven.md", version: expect.any(String) });
-    expect(await vault.read("Projects/Pizza oven.md")).toBe("oven");
+    expect(result).toMatchObject({ path: "Projects/Kitchen/Pizza oven.md", version: expect.any(String) });
+    expect(await vault.read("Projects/Kitchen/Pizza oven.md")).toBe("oven");
     expect(await vault.read("Index.md")).toBe("[[Pizza oven]]\n");
   });
 });

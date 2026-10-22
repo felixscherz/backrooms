@@ -314,10 +314,16 @@ export async function createMcpServer(engine: Engine): Promise<McpServer> {
         'Changes, each an object with "op":\n' +
         '- {op: "replace", old, new, all?}: replaces the exact text old with new. old has to occur exactly once, ' +
         "unless all is true; otherwise the call fails and says at which lines it occurs, so you can include more " +
-        "surrounding text. To add a line under a heading, read the section and replace its last line with that " +
-        "line plus the new one.\n" +
+        "surrounding text.\n" +
         '- {op: "append", content}: adds content at the end of the note, on a new line. Suits logs and inboxes.\n' +
         '- {op: "prepend", content}: adds content at the start of the note, after its frontmatter.\n' +
+        '- {op: "append_to_section", heading, content}: adds content on a new line at the end of the section under ' +
+        "heading, such as a task under ## Tasks. Text goes before the section's subheadings; content that starts " +
+        "with a heading is a new subsection and goes after the last one. heading is the heading's text, or a path " +
+        'such as "June > 2026-06-23" when several headings have the same text; a heading that matches several ' +
+        "sections fails and lists them.\n" +
+        '- {op: "set_content", content}: replaces everything after the frontmatter, to restructure a note. The ' +
+        "properties stay; change them with set_property.\n" +
         '- {op: "set_property", name, value, type?}: sets a frontmatter property. value is text, a number, a ' +
         `boolean or a list of text. type is one of ${propertyValueTypes.join(", ")}; without it, the type is the ` +
         "one the vault knows for the property, else the value's own. Dates are YYYY-MM-DD.\n" +
@@ -340,7 +346,7 @@ export async function createMcpServer(engine: Engine): Promise<McpServer> {
       title: "Move or rename a note",
       description:
         "Moves a note to another folder, renames it, or both, and updates every link to it in the vault. " +
-        `Give folder, name or both. ${VERSION_SENTENCE}`,
+        `Give folder, name or both. A folder that does not exist yet is created. ${VERSION_SENTENCE}`,
       inputSchema: {
         note: z.string().describe(NOTE_ARGUMENT),
         folder: z.string().optional().describe('The folder to move the note to. "" is the vault root.'),
@@ -462,6 +468,12 @@ const NOTE_CHANGE = z.discriminatedUnion("op", [
   }),
   z.object({ op: z.literal("append"), content: z.string() }),
   z.object({ op: z.literal("prepend"), content: z.string() }),
+  z.object({
+    op: z.literal("append_to_section"),
+    heading: z.string().describe('The heading\'s text, or a path of headings such as "June > 2026-06-23".'),
+    content: z.string(),
+  }),
+  z.object({ op: z.literal("set_content"), content: z.string().describe("The note's new text, without frontmatter.") }),
   z.object({
     op: z.literal("set_property"),
     name: z.string(),

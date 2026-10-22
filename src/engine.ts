@@ -460,7 +460,7 @@ export class Engine {
   async editNote(ref: FileRef, changes: NoteChange[], options: { version?: string } = {}): Promise<WriteResult> {
     if (changes.length === 0) throw new BackroomsError("invalid_argument", "Give at least one change.");
     return this.modify(ref, "edit", options.version, (text, path, vault) => ({
-      text: applyNoteChanges(text, changes, vault.settings.propertyTypes),
+      text: applyNoteChanges(text, changes, { path, propertyTypes: vault.settings.propertyTypes }),
       summary: `Edited: ${path} (${changes.length} ${changes.length === 1 ? "change" : "changes"})`,
     }));
   }
