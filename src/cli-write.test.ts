@@ -312,6 +312,14 @@ describe("rename and move", () => {
     expect(await vault.read("Trips.md")).toBe("[[Paris 2024]]");
   });
 
+  test("wikilinks written with .md lose it when they are updated, like in Obsidian", async () => {
+    const vault = await vaultWith({ "A.md": "[[B.md]] and [[B.md#Part|b]]", "B.md": "" });
+
+    await vault.ok("rename", "path=B.md", "name=C");
+
+    expect(await vault.read("A.md")).toBe("[[C]] and [[C#Part|b]]");
+  });
+
   test("a rename onto an existing note is refused", async () => {
     const vault = await vaultWith(files);
     const before = await vault.snapshot();

@@ -34,9 +34,11 @@ property:set path="Beta.md" name=title value=Beta
 delete path="Orphan Note.md"
 delete path="Nope.md"
 delete path="assets/diagram.png"
+~ rename path="Beta.md" name="Beta Renamed"
 rename path="folder/Gamma.md" name="Gamma Two"
 rename path="projects/Project Plan.md" name=Plan
 rename path="Alpha.md" name=Beta
+move path="Beta.md" to=folder/
 move path="projects/Sibling.md" to="Sibling Moved.md"
 move path="folder/sub/Delta.md" to=projects
 move path="projects/sub dir/Note With Space.md" to="Space Moved.md"

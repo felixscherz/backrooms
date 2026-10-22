@@ -84,10 +84,11 @@ function checkDestination(vault: Vault, from: string, to: string) {
 
 /**
  * The link path to write for a link to `target` from `source`, following the vault's link format and keeping the
- * link's own style: wikilinks to notes leave out `.md` unless the link had it, markdown links are URL encoded.
+ * link's own style: wikilinks to notes leave out `.md`, also when the link had it, like Obsidian, and markdown links
+ * are URL encoded.
  */
 function linkPathFor(vault: Vault, target: string, source: string, link: Link): string {
-  const keepExtension = !isMarkdown(target) || link.syntax === "markdown" || /\.md$/i.test(link.target);
+  const keepExtension = !isMarkdown(target) || link.syntax === "markdown";
   const withoutExtension = (path: string) => (keepExtension ? path : path.replace(/\.md$/i, ""));
   const name = withoutExtension(basename(target));
   const candidates: string[] = [];

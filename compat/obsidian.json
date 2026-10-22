@@ -135,7 +135,7 @@
     "folders folder=projects": "projects\nprojects/sub dir\n",
     "search query=pizza": "syntax/Comments tasks and blocks.md\nproperties/Long and special values.md\nfolder/sub/Delta.md\nfolder/Gamma.md\nBeta.md\nAlpha.md\n",
     "search query=\"pizza dough\"": "folder/Gamma.md\n",
-    "search query=\"pizza OR idea\"": "syntax/Comments tasks and blocks.md\nproperties/Long and special values.md\nprojects/Sibling.md\nfolder/sub/Delta.md\nfolder/Gamma.md\nBeta.md\nAlpha.md\n",
+    "search query=\"pizza OR idea\"": "syntax/Comments tasks and blocks.md\nproperties/Long and special values.md\nfolder/sub/Delta.md\nfolder/Gamma.md\nprojects/Sibling.md\nBeta.md\nAlpha.md\n",
     "search query=\"pizza -dough\"": "syntax/Comments tasks and blocks.md\nproperties/Long and special values.md\nfolder/sub/Delta.md\nBeta.md\nAlpha.md\n",
     "search query=\"tag:#idea\"": "projects/Sibling.md\nAlpha.md\n",
     "search query=\"tag:project\"": "projects/Project Plan.md\nAlpha.md\n",
@@ -393,6 +393,19 @@
         "assets/diagram.png": null
       }
     },
+    "rename path=\"Beta.md\" name=\"Beta Renamed\"": {
+      "output": "Renamed: Beta.md -> Beta Renamed.md\n",
+      "changes": {
+        "Alpha.md": "---\ndate_created: 2026-10-20 14:05:00\ntags:\n  - inbox\n  - project/alpha\naliases:\n  - First\n  - The Alpha\nrating: 4\ndone: true\nrelated:\n  - \"[[Beta Renamed]]\"\n  - \"[[Missing Prop]]\"\n---\n# Alpha\n\nIntro with #idea and #Idea and a [[Beta Renamed]] link and [[Beta Renamed|shown]] again.\nSee [[folder/Gamma#Section One]] and [[Gamma]] and [[Nowhere]] and [[Nowhere]].\nEmbed ![[diagram.png]] and [md](folder/sub/Delta.md) and [ext](https://example.com).\n\n## Second heading\nText with pizza recipe mention.\n- [ ] a task #todo\n- [x] done task\n\n### Third ###\nBlock ^blk1\n",
+        "Beta Renamed.md": "# Beta\n\nBack to [[Alpha]]. Also [[First]] alias link. Pizza is great.\n`#notatag` #real-tag\n",
+        "Beta.md": null,
+        "folder/Gamma.md": "---\ntags: resource/cooking\n---\n# Gamma\n\n## Section One\nPizza dough recipe. Links [[Alpha#Second heading]] and [[Beta Renamed]].\n",
+        "projects/Project Plan.md": "---\nstatus: active\nowner: \"[[Beta Renamed]]\"\ntags:\n  - project\n  - project/alpha/sub\n---\n# Project Plan\n\n## Heading with `code` and **bold**\n%% hidden #comment-tag [[Commented Link]] %%\n```\n#code-tag [[Code Link]]\n```\nInline `#inline-code-tag` and #project/beta and #2026 and #y2026.\nLinks: [rel](Beta%20Renamed.md), [angled](<sub dir/Note With Space.md>), [[./Sibling]], [[../Gamma]], [[Gamma]].\nBlock ref [[Alpha#^blk1]] and heading ref [[#Heading with `code` and **bold**]].\n",
+        "properties/Value kinds.md": "---\ns: plain\nq: \"quoted: colon\"\nn: 5\nf: 1.5\nb: false\nd: 2026-10-20\ne:\nl:\n  - a\n  - b c\n  - 3\nnested:\n  k: v\nmulti: |\n  line1\n  line2\nlink: \"[[Beta Renamed]]\"\nnum_str: \"007\"\nempty_list: []\n---\n",
+        "syntax/Comments tasks and blocks.md": "%%\n# Heading in comment\n#tag-in-multiline-comment [[Link In Comment]] ^blockincomment\n%%\n# Real heading\nText [[Nowhere.md]] [[nowhere]] [x](Nowhere%20Two.md) [y](<Nowhere Three.md>) [[Sub/Thing.md#h]] ![[missing.png]] [[Beta Renamed]]\n- [ ] open task pizza\n- [x] done task pizza\n\nPara one pizza\ncontinues here\n\nPara two",
+        "words/Link syntax.md": "[[Beta Renamed|shown]] [md](folder/x.md) #tag ^blk1"
+      }
+    },
     "rename path=\"folder/Gamma.md\" name=\"Gamma Two\"": {
       "output": "Renamed: folder/Gamma.md -> folder/Gamma Two.md\n",
       "changes": {
@@ -412,6 +425,15 @@
     "rename path=\"Alpha.md\" name=Beta": {
       "output": "Error: Destination file already exists!\n",
       "changes": {}
+    },
+    "move path=\"Beta.md\" to=folder/": {
+      "output": "Moved: Beta.md -> folder/Beta.md\n",
+      "changes": {
+        "Beta.md": null,
+        "folder/Beta.md": "# Beta\n\nBack to [[Alpha]]. Also [[First]] alias link. Pizza is great.\n`#notatag` #real-tag\n",
+        "projects/Project Plan.md": "---\nstatus: active\nowner: \"[[Beta]]\"\ntags: [project, project/alpha/sub]\n---\n# Project Plan\n\n## Heading with `code` and **bold**\n%% hidden #comment-tag [[Commented Link]] %%\n```\n#code-tag [[Code Link]]\n```\nInline `#inline-code-tag` and #project/beta and #2026 and #y2026.\nLinks: [rel](Beta.md), [angled](<sub dir/Note With Space.md>), [[./Sibling]], [[../Gamma]], [[Gamma]].\nBlock ref [[Alpha#^blk1]] and heading ref [[#Heading with `code` and **bold**]].\n",
+        "syntax/Comments tasks and blocks.md": "%%\n# Heading in comment\n#tag-in-multiline-comment [[Link In Comment]] ^blockincomment\n%%\n# Real heading\nText [[Nowhere.md]] [[nowhere]] [x](Nowhere%20Two.md) [y](<Nowhere Three.md>) [[Sub/Thing.md#h]] ![[missing.png]] [[Beta]]\n- [ ] open task pizza\n- [x] done task pizza\n\nPara one pizza\ncontinues here\n\nPara two"
+      }
     },
     "move path=\"projects/Sibling.md\" to=\"Sibling Moved.md\"": {
       "output": "Moved: projects/Sibling.md -> Sibling Moved.md\n",
