@@ -12,6 +12,14 @@ Claude app on a phone through MCP.
   Obsidian, and where backrooms deliberately differs.
 - [docs/adr/](docs/adr/) holds the architecture decisions.
 
+## Install
+
+backrooms runs on [Bun](https://bun.sh):
+
+```bash
+bun add -g @felixscherz/backrooms   # or run it once with: bunx @felixscherz/backrooms help
+```
+
 ## Usage
 
 backrooms takes the same commands and `key=value` parameters as the Obsidian CLI:

@@ -1,21 +1,49 @@
 {
-  "name": "backrooms",
+  "name": "@felixscherz/backrooms",
+  "version": "0.1.0",
+  "description": "A headless server for an Obsidian vault: the Obsidian CLI and an MCP server without the Obsidian app",
+  "keywords": [
+    "obsidian",
+    "mcp",
+    "cli",
+    "notes",
+    "vault"
+  ],
+  "license": "MIT",
+  "author": "Felix Scherz",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/felixscherz/backrooms.git"
+  },
+  "homepage": "https://github.com/felixscherz/backrooms#readme",
+  "bugs": "https://github.com/felixscherz/backrooms/issues",
   "module": "src/main.ts",
   "type": "module",
-  "private": true,
   "bin": {
     "backrooms": "src/main.ts"
+  },
+  "files": [
+    "src",
+    "!src/**/*.test.ts",
+    "!src/testing",
+    "assets/favicon.png",
+    "assets/icon.svg"
+  ],
+  "engines": {
+    "bun": ">=1.2"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "typecheck": "bun check",
     "build": "bun build --compile src/main.ts --outfile dist/backrooms",
     "format": "bunx prettier@3.3.3 --write \"src/**/*.ts\" \"compat/**/*.ts\"",
-    "build:linux": "bun build --compile --target=bun-linux-x64 src/main.ts --outfile dist/backrooms-linux-x64"
+    "build:linux": "bun build --compile --target=bun-linux-x64 src/main.ts --outfile dist/backrooms-linux-x64",
+    "prepublishOnly": "bun test"
   },
   "devDependencies": {
-    "@types/bun": "latest"
-  },
-  "peerDependencies": {
+    "@types/bun": "latest",
     "typescript": "^7"
   },
   "dependencies": {

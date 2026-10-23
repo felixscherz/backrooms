@@ -3,6 +3,7 @@ import { BackroomsError } from "./errors";
 import { propertyValueTypes, type PropertyValueType } from "./frontmatter";
 import { stringify as stringifyYaml } from "yaml";
 import type { JsonValue } from "./note";
+import packageJson from "../package.json" with { type: "json" };
 import { compareNames } from "./paths";
 
 /** Parsed command line: the command, its `key=value` parameters and its bare flags. */
@@ -542,7 +543,7 @@ export async function runCli(
 ): Promise<CliResult> {
   const { command } = invocation;
   if (command === "help" || command === "--help" || command === "-h") return { output: helpText(), exitCode: 0 };
-  if (command === "version" || command === "--version") return { output: "backrooms 0.1.0", exitCode: 0 };
+  if (command === "version" || command === "--version") return { output: `backrooms ${packageJson.version}`, exitCode: 0 };
   try {
     if (command in UNSUPPORTED) {
       throw new BackroomsError("unsupported", `Command "${command}" is not supported: ${UNSUPPORTED[command]}`);
